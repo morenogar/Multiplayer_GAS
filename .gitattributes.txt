@@ -1,0 +1,2 @@
+Content/Multiplayer_GAS/**/*.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Multiplayer_GAS/**/*.umap filter=lfs diff=lfs merge=lfs -text
