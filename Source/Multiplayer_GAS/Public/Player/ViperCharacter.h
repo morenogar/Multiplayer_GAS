@@ -4,25 +4,44 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "AbilitySystemInterface.h"
 #include "ViperCharacter.generated.h"
 
+class UViperAbilitySystemComponent;
+class UViperAttributeSet;
+class IOnlineSession;
+
 UCLASS()
-class MULTIPLAYER_GAS_API AViperCharacter : public ACharacter
+class MULTIPLAYER_GAS_API AViperCharacter : public ACharacter, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this character's properties
+
 	AViperCharacter();
+	void ServerSideInit();
+	void ClientSideInit();
+	
+	virtual void Tick(float DeltaTime) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	/***********************************************************************/
+	/*                          GAMEPLAY ABILITY                           */
+	/***********************************************************************/
+
+	UFUNCTION(BlueprintCallable, Category="Viper|Character")
+	UViperAbilitySystemComponent* GetViperAbilitySystemComponent() const;
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+	UPROPERTY(VisibleDefaultsOnly, Category = "Gameplay Ability")
+	UViperAbilitySystemComponent* ViperAbilitySystemComponent;
 
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	UPROPERTY()
+	UViperAttributeSet* ViperAttributeSet;
+
+	//Pointer to the online session interface
+	TSharedPtr<IOnlineSession, ESPMode::ThreadSafe> OnlineSessionInterface;
 };
