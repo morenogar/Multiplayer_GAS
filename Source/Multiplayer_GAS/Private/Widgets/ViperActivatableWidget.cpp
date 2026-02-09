@@ -30,21 +30,11 @@ TOptional<FUIInputConfig> UViperActivatableWidget::GetDesiredInputConfig() const
 void UViperActivatableWidget::NativeOnActivated()
 {
 	Super::NativeOnActivated();
-
-	if (IsActivated())
-	{
-		FSlateApplication::Get().PlaySound(ActivatedSound);
-	}
 }
 
 void UViperActivatableWidget::NativeOnDeactivated()
 {
 	Super::NativeOnDeactivated();
-
-	if (!IsActivated())
-	{
-		FSlateApplication::Get().PlaySound(DeactivatedSound);
-	}
 }
 
 void UViperActivatableWidget::NativeDestruct()

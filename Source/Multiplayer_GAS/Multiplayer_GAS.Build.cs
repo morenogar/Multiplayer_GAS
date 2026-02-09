@@ -10,7 +10,7 @@ public class Multiplayer_GAS : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",	"UMG", "CommonUI", "GameplayAbilities", "OnlineSubsystemSteam", "OnlineSubsystem" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "EnhancedInput" , "GameplayAbilities" , "GameplayTasks" , "GameplayTags", "Slate", "SlateCore", "CommonUI"});
+		PrivateDependencyModuleNames.AddRange(new string[] { "EnhancedInput" , "GameplayAbilities" , "GameplayTasks" , "GameplayTags", "Slate", "SlateCore", "CommonUI", "CommonInput"});
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

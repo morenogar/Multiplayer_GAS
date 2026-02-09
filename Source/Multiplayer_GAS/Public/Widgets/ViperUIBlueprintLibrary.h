@@ -4,10 +4,13 @@
 
 #include "CoreMinimal.h"
 #include <Components/Widget.h>
+
+#include "ViperPopupProviderInterface.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Slate/SObjectWidget.h"
 #include "ViperUIBlueprintLibrary.generated.h"
 
+class IViperPopupProviderInterface;
 class IViperSettingManagerInterface;
 class UCommonActivatableWidget;
 class UWidget;
@@ -29,6 +32,13 @@ public:
 	
 	UFUNCTION(BlueprintCallable, meta = (DefaultToSelf = "Widget"))
 	static TScriptInterface<IViperSettingManagerInterface> SearchUpWidgetHierarchyForSettingWidgetManager(UWidget* widget);
+
+	UFUNCTION(BlueprintCallable, meta = (DefaultToSelf = "Widget"))
+	static TScriptInterface<IViperPopupProviderInterface> SearchUpWidgetHierarchyForPopupProvider(UWidget* widget);
+
+	UFUNCTION(BlueprintPure)
+	static FViperUIButtonCallback TryGetCallbackFromUIButtonData(UPARAM(Ref)const FViperUICallbackButtonData& inButtonData, bool& outCallbackWasBound);
+
 
 private:
 	template <typename IInterfaceType, typename UInterfaceType>

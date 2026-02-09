@@ -37,13 +37,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = Input)
 	EMouseCaptureMode GameMouseCaptureMode = EMouseCaptureMode::CapturePermanently;
 	
-	
-	UPROPERTY(EditDefaultsOnly, Category=Sound)
-	FSlateSound ActivatedSound;
-
-	UPROPERTY(EditDefaultsOnly, Category=Sound)
-	FSlateSound DeactivatedSound;
-	
 	UPROPERTY(EditAnywhere, Category="Input", meta = (EditCondition = "CommonInput.CommonInputSettings.IsEnhancedInputSupportEnabled", EditConditionHides))
 	FModifyContextOptions InputMappingOptions;
 	

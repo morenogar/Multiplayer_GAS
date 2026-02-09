@@ -6,6 +6,7 @@
 #include "GameplayTagContainer.h"
 #include "Widgets/ViperHUD.h"
 #include "Widgets/ViperOverallUILayout.h"
+#include "Widgets/ViperPopupProviderInterface.h"
 #include "Widgets/ViperSettingManagerInterface.h"
 
 
@@ -46,5 +47,18 @@ TScriptInterface<IViperSettingManagerInterface> UViperUIBlueprintLibrary::Search
 	return SearchUpSWidgetHierarchyForWidgetWithInterface<IViperSettingManagerInterface, UViperSettingManagerInterface>(widget);
 }
 
+TScriptInterface<IViperPopupProviderInterface> UViperUIBlueprintLibrary::SearchUpWidgetHierarchyForPopupProvider(UWidget* widget)
+{
+	return SearchUpSWidgetHierarchyForWidgetWithInterface<IViperPopupProviderInterface, UViperPopupProviderInterface>(widget);
+}
 
+FViperUIButtonCallback UViperUIBlueprintLibrary::TryGetCallbackFromUIButtonData(const FViperUICallbackButtonData& inButtonData, bool& outCallbackWasBound)
+{
+	outCallbackWasBound = false;
+	
+	if (inButtonData.Callback.IsBound() == false)
+		return FViperUIButtonCallback();
 
+	outCallbackWasBound = true;
+	return inButtonData.Callback;
+}
