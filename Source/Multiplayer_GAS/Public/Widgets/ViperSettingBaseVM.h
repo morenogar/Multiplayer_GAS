@@ -18,6 +18,9 @@ class MULTIPLAYER_GAS_API UViperSettingBaseVM : public UMVVMViewModelBase
 public:
 	FGameplayTag GetSettingId() const { return SettingId; }
 	void SetSettingID(const FGameplayTag& NewSettingId);
+	
+	FGameplayTag GetSettingCategoryId() const { return SettingCategoryId; }
+	void SetSettingCategoryID(const FGameplayTag& NewSettingCategoryId);
 
 	const FText& GetSettingName() const { return SettingName; }
 	void SetSettingName(const FText& NewName);
@@ -34,6 +37,9 @@ public:
 private:
 	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter, Category = "Viper|SettingsVMs|Base", meta=(AllowPrivateAccess=true))
 	FGameplayTag SettingId;
+	
+	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter, Category = "Viper|SettingsVMs|Base", meta=(AllowPrivateAccess=true))
+	FGameplayTag SettingCategoryId;
 	
 	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter, Category = "Viper|SettingsVMs|Base", meta=(AllowPrivateAccess=true))
 	FText SettingName;

@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "Interfaces/OnlineSessionDelegates.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "ViperCharacter.generated.h"
 
 class UViperAbilitySystemComponent;
@@ -43,5 +45,25 @@ protected:
 	UViperAttributeSet* ViperAttributeSet;
 
 	//Pointer to the online session interface
-	TSharedPtr<IOnlineSession, ESPMode::ThreadSafe> OnlineSessionInterface;
+	IOnlineSessionPtr OnlineSessionInterface;
+	
+	UFUNCTION(BlueprintCallable, Category = "Viper|Character")
+	void CreateGameSession();
+	
+	UFUNCTION(BlueprintCallable, Category = "Viper|Character")
+	void JoinGameSession();
+	
+	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
+	
+	void OnFindSessionComplete(bool bWasSuccessful);
+	
+	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
+	
+private:
+	
+	FOnCreateSessionCompleteDelegate CreateSessionCompleteDelegate; 
+	FOnFindSessionsCompleteDelegate FindSessionsCompleteDelegate;
+	FOnJoinSessionCompleteDelegate JoinSessionCompleteDelegate;
+	
+	TSharedPtr<FOnlineSessionSearch> SessionSearch;
 };

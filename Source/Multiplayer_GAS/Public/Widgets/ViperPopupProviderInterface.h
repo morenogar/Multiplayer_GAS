@@ -57,7 +57,7 @@ struct FViperConfirmCancelPopupOverrides
 };
 
 // This class does not need to be modified.
-UINTERFACE(MinimalAPI)
+UINTERFACE(BlueprintType)
 class UViperPopupProviderInterface : public UInterface
 {
 	GENERATED_BODY()

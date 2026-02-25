@@ -8,6 +8,11 @@ void UViperSettingBaseVM::SetSettingID(const FGameplayTag& NewSettingId)
 	UE_MVVM_SET_PROPERTY_VALUE(SettingId, NewSettingId);
 }
 
+void UViperSettingBaseVM::SetSettingCategoryID(const FGameplayTag& NewSettingCategoryId)
+{
+	UE_MVVM_SET_PROPERTY_VALUE(SettingCategoryId, NewSettingCategoryId);
+}
+
 void UViperSettingBaseVM::SetSettingName(const FText& NewName)
 {
 	UE_MVVM_SET_PROPERTY_VALUE(SettingName, NewName);

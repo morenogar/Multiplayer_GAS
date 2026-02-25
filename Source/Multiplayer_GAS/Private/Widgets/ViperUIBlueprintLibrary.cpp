@@ -62,3 +62,15 @@ FViperUIButtonCallback UViperUIBlueprintLibrary::TryGetCallbackFromUIButtonData(
 	outCallbackWasBound = true;
 	return inButtonData.Callback;
 }
+
+bool UViperUIBlueprintLibrary::TryAssignCallbackToButtonData(const FViperUIButtonData& inButtonData,
+	const FViperUIButtonCallback& callback, FViperUICallbackButtonData& outButtonData)
+{
+	if (callback.IsBound() == false)
+		return false;
+
+	outButtonData.ButtonData = inButtonData;
+	outButtonData.Callback = callback;
+
+	return true;
+}

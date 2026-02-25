@@ -22,6 +22,8 @@ void UViperSlider::ReleaseSlateResources(bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
 	
+	ViperSlider.Reset();
+	
 	if (UCommonInputSubsystem* InputSubsystem = UCommonInputSubsystem::Get(GetOwningLocalPlayer()))
 	{
 		InputSubsystem->OnInputMethodChangedNative.RemoveAll(this);

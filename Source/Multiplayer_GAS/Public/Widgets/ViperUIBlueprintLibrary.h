@@ -38,6 +38,9 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	static FViperUIButtonCallback TryGetCallbackFromUIButtonData(UPARAM(Ref)const FViperUICallbackButtonData& inButtonData, bool& outCallbackWasBound);
+	
+	UFUNCTION(BlueprintPure)
+	static bool TryAssignCallbackToButtonData(UPARAM(Ref)const FViperUIButtonData& inButtonData, UPARAM(Ref)const FViperUIButtonCallback& callback, FViperUICallbackButtonData& outButtonData);
 
 
 private:

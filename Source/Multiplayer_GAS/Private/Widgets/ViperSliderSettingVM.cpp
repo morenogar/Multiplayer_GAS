@@ -1,7 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
-#include "ViperSliderSettingVM.h"
+#include "Widgets/ViperSliderSettingVM.h"
 
 void UViperSliderSettingVM::SetSliderValue(const float NewValue)
 {
