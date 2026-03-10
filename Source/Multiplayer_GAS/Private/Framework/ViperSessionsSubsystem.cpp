@@ -25,7 +25,10 @@ void UViperSessionsSubsystem::CreateSession(int32 NumOfPublicConnections, FStrin
 	
 	if (SessionInterface->GetNamedSession(NAME_GameSession))
 	{
-		SessionInterface->DestroySession(NAME_GameSession);
+		bCreatedSessionOnDestroy = true;
+		LastNumOfPublicConnections = NumOfPublicConnections;
+		LastMatchType = MatchType;
+		DestroySession();
 	}
 	
 	 CreateSessionCompleteDelegateHandle = SessionInterface->AddOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegate);
@@ -39,6 +42,7 @@ void UViperSessionsSubsystem::CreateSession(int32 NumOfPublicConnections, FStrin
 	LastSessionSettings->bUsesPresence = true;
 	LastSessionSettings->bUseLobbiesIfAvailable = true;
 	LastSessionSettings->Set(FName("MatchType"),MatchType,EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	LastSessionSettings->BuildUniqueId = 1;
 	
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	if (!SessionInterface->CreateSession(*LocalPlayer->GetPreferredUniqueNetId(),NAME_GameSession,*LastSessionSettings))
@@ -90,10 +94,24 @@ void UViperSessionsSubsystem::JoinSession(const FOnlineSessionSearchResult& Sess
 
 void UViperSessionsSubsystem::DestroySession()
 {
+	if (!SessionInterface.IsValid())
+	{
+		ViperOnDestroySessionCompleteDelegate.Broadcast(false);
+		return;
+	}
+	
+	DestroySessionCompleteDelegateHandle = SessionInterface->AddOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegate);
+	
+	if (!SessionInterface->DestroySession(NAME_GameSession))
+	{
+		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
+		ViperOnDestroySessionCompleteDelegate.Broadcast(false);
+	}
 }
 
 void UViperSessionsSubsystem::StartSession()
 {
+	
 }
 
 void UViperSessionsSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
@@ -128,6 +146,15 @@ void UViperSessionsSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSe
 
 void UViperSessionsSubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
 {
+	if (SessionInterface)
+		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
+	
+	if (bWasSuccessful && bCreatedSessionOnDestroy)
+	{
+		bCreatedSessionOnDestroy = false;
+		CreateSession(LastNumOfPublicConnections,LastMatchType);
+	}
+	ViperOnDestroySessionCompleteDelegate.Broadcast(bWasSuccessful);
 }
 
 void UViperSessionsSubsystem::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)

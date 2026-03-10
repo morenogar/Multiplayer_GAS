@@ -82,6 +82,11 @@ void UViperBootUpSubsystem::OnFindSessions(const TArray<FOnlineSessionSearchResu
 			return;
 		}
 	}
+	
+	if (!bWasSuccessful || SessionSearchResults.Num() == 0)
+	{
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString::Printf(TEXT("Failed to find sessions")));
+	}
 }
 
 void UViperBootUpSubsystem::OnJoinSession(EOnJoinSessionCompleteResult::Type Result)
@@ -100,6 +105,11 @@ void UViperBootUpSubsystem::OnJoinSession(EOnJoinSessionCompleteResult::Type Res
 				}
 			}
 		}
+	}
+	
+	if (Result != EOnJoinSessionCompleteResult::Success)
+	{
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString::Printf(TEXT("Failed to Join session")));
 	}
 }
 

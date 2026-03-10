@@ -14,7 +14,9 @@ class MULTIPLAYER_GAS_API AViperGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 	
+public:
 	
-	
+	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual void Logout(AController* ExitingController) override;
 	
 };
