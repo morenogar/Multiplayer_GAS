@@ -10,6 +10,8 @@
 /**
  * 
  */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJoinCodeSessionFounded, bool, bFounded);
+
 UCLASS()
 class MULTIPLAYER_GAS_API UViperBootUpSubsystem : public ULocalPlayerSubsystem
 {
@@ -26,17 +28,29 @@ public:
 	bool TryToSearchSessions();
 	
 	UFUNCTION(BlueprintCallable, Category = "Viper|BootUp")
+	bool TryToSearchSessionsByCode(FString ID);
+	
+	UFUNCTION(BlueprintCallable, Category = "Viper|BootUp")
 	void UpdateMatchType(FString TypeOfMatch = "FreeForAll");
 	
 	UFUNCTION(BlueprintCallable, Category = "Viper|BootUp")
 	void UpdateNumberOfPublicConnections(int32 NumberOfPublicConnections = 4);
 	
+	UFUNCTION(BlueprintCallable, Category = "Viper|BootUp")
+	void OpenLobbyLevel();
+	
+	UFUNCTION(BlueprintPure, Category = "Viper|BootUp")
+	FString GetCurrentSessionID() {return CurrentSessionID; };
+	
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnJoinCodeSessionFounded OnJoinCodeSessionFounded;
+	
 protected:
 	
 	UFUNCTION()
-	void OnCreateSession(bool bWasSuccessful);
+	void OnCreateSession(bool bWasSuccessful, FString SessionID);
 	
-	void OnFindSessions(const TArray<FOnlineSessionSearchResult>& SessionSearchResults, bool bWasSuccessful);
+	void OnFindSessions(const TArray<FOnlineSessionSearchResult>& SessionSearchResults, bool bWasSuccessful, FString LastSessionCode);
 	void OnJoinSession(EOnJoinSessionCompleteResult::Type Result);
 	
 	UFUNCTION()
@@ -44,12 +58,14 @@ protected:
 	
 	UFUNCTION()
 	void OnStartSession(bool bWasSuccessful);
-	
+
 private:
 	
 	class UViperSessionsSubsystem* ViperSessionsSubsystem;
 	
 	int32 NumOfPublicConnections = 4;
 	FString MatchType = "FreeForAll";
+	FString CurrentSessionID = "";
 	
+	FString LastValidAddress = "";
 };

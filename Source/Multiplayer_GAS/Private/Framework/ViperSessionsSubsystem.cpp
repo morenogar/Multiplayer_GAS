@@ -4,6 +4,8 @@
 #include "Framework/ViperSessionsSubsystem.h"
 
 #include "OnlineSessionSettings.h"
+//#include "OnlineReplStructs.h"
+#include "OnlineSubsystemTypes.h"
 #include "OnlineSubsystem.h"
 
 UViperSessionsSubsystem::UViperSessionsSubsystem():
@@ -48,7 +50,11 @@ void UViperSessionsSubsystem::CreateSession(int32 NumOfPublicConnections, FStrin
 	if (!SessionInterface->CreateSession(*LocalPlayer->GetPreferredUniqueNetId(),NAME_GameSession,*LastSessionSettings))
 	{
 		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
-		ViperOnCreateSessionCompleteDelegate.Broadcast(false);
+		ViperOnCreateSessionCompleteDelegate.Broadcast(false,"");
+	}
+	else
+	{
+		LastNamedSession = MakeShareable(SessionInterface->GetNamedSession(NAME_GameSession));
 	}
 }
 
@@ -70,8 +76,14 @@ void UViperSessionsSubsystem::FindSession(int32 MaxSearchResults)
 	if (!SessionInterface->FindSessions(*LocalPlayer->GetPreferredUniqueNetId(),LastSessionSearch.ToSharedRef()))
 	{
 		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
-		ViperOnFindSessionsCompleteDelegate.Broadcast(TArray<FOnlineSessionSearchResult>(),false);
+		ViperOnFindSessionsCompleteDelegate.Broadcast(TArray<FOnlineSessionSearchResult>(),false,LastSessionCode);
 	}
+}
+
+void UViperSessionsSubsystem::FindSessionByCode(FString ID, int32 MaxSearchResults)
+{
+	LastSessionCode = ID;
+	FindSession(MaxSearchResults);
 }
 
 void UViperSessionsSubsystem::JoinSession(const FOnlineSessionSearchResult& SessionSearchResult)
@@ -118,8 +130,11 @@ void UViperSessionsSubsystem::OnCreateSessionComplete(FName SessionName, bool bW
 {
 	if (SessionInterface)
 		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
-	
-	ViperOnCreateSessionCompleteDelegate.Broadcast(bWasSuccessful);
+
+	if (LastNamedSession)
+		ViperOnCreateSessionCompleteDelegate.Broadcast(bWasSuccessful,LastNamedSession->GetSessionIdStr());
+	else
+		ViperOnCreateSessionCompleteDelegate.Broadcast(bWasSuccessful, "");
 }
 
 void UViperSessionsSubsystem::OnFindSessionComplete(bool bWasSuccessful)
@@ -129,11 +144,11 @@ void UViperSessionsSubsystem::OnFindSessionComplete(bool bWasSuccessful)
 	
 	if (LastSessionSearch->SearchResults.Num() == 0)
 	{
-		ViperOnFindSessionsCompleteDelegate.Broadcast(TArray<FOnlineSessionSearchResult>(),false);
+		ViperOnFindSessionsCompleteDelegate.Broadcast(TArray<FOnlineSessionSearchResult>(),false,LastSessionCode);
 		return;
 	}
 	
-	ViperOnFindSessionsCompleteDelegate.Broadcast(LastSessionSearch->SearchResults, bWasSuccessful);
+	ViperOnFindSessionsCompleteDelegate.Broadcast(LastSessionSearch->SearchResults, bWasSuccessful,LastSessionCode);
 }
 
 void UViperSessionsSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)

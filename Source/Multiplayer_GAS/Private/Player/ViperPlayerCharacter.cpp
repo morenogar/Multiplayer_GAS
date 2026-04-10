@@ -11,9 +11,16 @@
 #include "GAS/ViperAbilitySystemComponent.h"
 #include "GAS/ViperBaseGameplayAbility.h"
 #include "Input/ViperEnhancedInputComponent.h"
+#include "Interactables/ViperInteractableInterface.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/SphereComponent.h"
+#include "Interactables/ViperObjectDefinition.h"
+#include "Interactables/ViperObjectDefinitionInterface.h"
 
 AViperPlayerCharacter::AViperPlayerCharacter()
 {
+	PrimaryActorTick.bCanEverTick = true;
+	
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>("Camera Boom");
 	CameraBoom->bUsePawnControlRotation = true;
 	CameraBoom->SetupAttachment(GetRootComponent());
@@ -24,6 +31,19 @@ AViperPlayerCharacter::AViperPlayerCharacter()
 	bUseControllerRotationYaw = false;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f,720.0f,0.0f);
+	
+	
+	InteractionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphere"));
+	InteractionSphere->SetupAttachment(GetRootComponent());
+	InteractionSphere->SetSphereRadius(300.f);
+
+	InteractionSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	InteractionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
+	InteractionSphere->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Overlap);
+
+	InteractionSphere->SetGenerateOverlapEvents(true);
+
+	CurrentInteractable = nullptr;
 }
 
 void AViperPlayerCharacter::BeginPlay()
@@ -43,6 +63,16 @@ void AViperPlayerCharacter::BeginPlay()
 			ability->TryActivateAbilityOnSpawn(ViperAbilitySystemComponent->AbilityActorInfo.Get(), abilitySpec);
 		}
 	}
+	
+	InteractionSphere->OnComponentBeginOverlap.AddDynamic(this, &AViperPlayerCharacter::OnSphereBeginOverlap);
+	InteractionSphere->OnComponentEndOverlap.AddDynamic(this, &AViperPlayerCharacter::OnSphereEndOverlap);
+}
+
+void AViperPlayerCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	SelectBestInteractable();
 }
 
 void AViperPlayerCharacter::PawnClientRestart()
@@ -144,6 +174,130 @@ void AViperPlayerCharacter::InputAbilityInputTagReleased(FGameplayTag InputTag)
 	}
 }
 
+void AViperPlayerCharacter::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!OtherActor) return;
+
+	if (OtherActor->GetClass()->ImplementsInterface(UViperObjectDefinitionInterface::StaticClass()))
+	{
+		InteractableActorsInRange.AddUnique(OtherActor);
+	}
+}
+
+void AViperPlayerCharacter::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (!OtherActor) return;
+
+	InteractableActorsInRange.Remove(OtherActor);
+
+	if (OtherActor == CurrentInteractable)
+	{
+		CurrentInteractable = nullptr;
+	}
+}
+
+void AViperPlayerCharacter::SelectBestInteractable()
+{
+	CurrentInteractable = nullptr;
+
+    FVector CamLoc;
+    FRotator CamRot;
+    GetController()->GetPlayerViewPoint(CamLoc, CamRot);
+
+    FVector Forward = CamRot.Vector();
+	
+    FHitResult Hit;
+    FVector TraceEnd = CamLoc + (Forward * MaxInteractDistance);
+
+    FCollisionQueryParams Params;
+    Params.AddIgnoredActor(this);
+
+    bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, CamLoc, TraceEnd, ECC_Visibility, Params);
+	
+	if (bHit)
+		DrawDebugSphere(GetWorld(), Hit.ImpactPoint, 10.f, 12, FColor::Red, false, 0.f);
+
+    if (bHit && Hit.GetActor() && Hit.GetActor()->GetClass()->ImplementsInterface(UViperObjectDefinitionInterface::StaticClass()))
+    {
+        CurrentInteractable = Hit.GetActor();
+
+        DrawDebugSphere(GetWorld(), CurrentInteractable->GetActorLocation(), 25.f, 12, FColor::Red, false, 0.1f);
+    	
+    	// 1. Cast the Actor to the Interface pointer (prefixed with 'I')
+    	IViperObjectDefinitionInterface* InterfaceInstance = Cast<IViperObjectDefinitionInterface>(CurrentInteractable);
+
+    	if (InterfaceInstance)
+    	{
+    		// 2. Call the function directly
+    		if (const UViperObjectDefinition* ObjDef = InterfaceInstance->GetObjectDefinition())
+    		{
+    			BPE_InteractionUpdated(CurrentInteractable->GetActorLocation(), ObjDef);
+    			
+    			UE_LOG(LogTemp, Log, TEXT("Raycast hit: %s"), *ObjDef->GetDisplayName().ToString());
+    			return;
+    		}
+    	}
+    }
+	
+    if (InteractableActorsInRange.Num() == 0)
+    {
+    	BPE_InteractionUpdated(FVector(0.0f,0.0f,0.0f), nullptr);
+    	return;
+    }
+
+    float BestScore = -1.f;
+
+	for (AActor* Actor : InteractableActorsInRange)
+	{
+		if (!Actor) continue;
+
+		// 🔹 Dirección desde la cámara (lo que el jugador ve)
+		FVector DirToActor = (Actor->GetActorLocation() - CamLoc).GetSafeNormal();
+		float Dot = FVector::DotProduct(Forward, DirToActor);
+
+		// 🔹 Filtrar por ángulo (cono de visión)
+		if (Dot < MinDotThreshold)
+			continue;
+
+		// 🔹 Distancia desde el personaje (lo que puede alcanzar)
+		float Distance = FVector::Dist(GetActorLocation(), Actor->GetActorLocation());
+
+		if (Distance > MaxInteractDistance)
+			continue;
+
+		// 🔹 Score combinado (prioriza centro de pantalla + cercanía)
+		float Score = Dot - (Distance * 0.001f);
+
+		if (Score > BestScore)
+		{
+			BestScore = Score;
+			CurrentInteractable = Actor;
+		}
+	}
+
+    if (CurrentInteractable)
+    {
+        //FText Text = IViperInteractableInterface::Execute_GetInteractText(CurrentInteractable);
+
+        DrawDebugSphere(GetWorld(), CurrentInteractable->GetActorLocation(), 25.f, 12, FColor::Green, false, 0.1f);
+    	
+    	IViperObjectDefinitionInterface* InterfaceInstance = Cast<IViperObjectDefinitionInterface>(CurrentInteractable);
+
+    	if (InterfaceInstance)
+    	{
+    		if (const UViperObjectDefinition* ObjDef = InterfaceInstance->GetObjectDefinition())
+    		{
+    			BPE_InteractionUpdated(CurrentInteractable->GetActorLocation(), ObjDef);
+    			UE_LOG(LogTemp, Log, TEXT("Raycast hit: %s"), *ObjDef->GetDisplayName().ToString());
+    		}
+    		
+    		return;
+    	}
+    }
+	
+	BPE_InteractionUpdated(FVector(0.0f,0.0f,0.0f), nullptr);
+}
+
 void AViperPlayerCharacter::Jump()
 {
 	if (bCanJumpAgain)
@@ -158,7 +312,6 @@ void AViperPlayerCharacter::Landed(const FHitResult& Hit)
 	Super::Landed(Hit);
 	GetWorldTimerManager().SetTimer(JumpCooldownHandle, this, &AViperPlayerCharacter::ResetJump, JumpCooldown, false);
 }
-
 
 void AViperPlayerCharacter::HandleLookInput(const FInputActionValue& InputActionValue)
 {

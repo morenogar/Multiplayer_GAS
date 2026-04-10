@@ -37,6 +37,12 @@ bool UViperBootUpSubsystem::TryToSearchSessions()
 	return true;
 }
 
+bool UViperBootUpSubsystem::TryToSearchSessionsByCode(FString ID)
+{
+	if (ViperSessionsSubsystem) ViperSessionsSubsystem->FindSessionByCode(ID,10000);
+	return true;
+}
+
 void UViperBootUpSubsystem::UpdateMatchType(FString TypeOfMatch)
 {
 	MatchType = TypeOfMatch;
@@ -47,7 +53,7 @@ void UViperBootUpSubsystem::UpdateNumberOfPublicConnections(int32 NumberOfPublic
 	NumOfPublicConnections = NumberOfPublicConnections;
 }
 
-void UViperBootUpSubsystem::OnCreateSession(bool bWasSuccessful)
+void UViperBootUpSubsystem::OnCreateSession(bool bWasSuccessful, FString SessionID)
 {
 	if (bWasSuccessful)
 	{
@@ -56,6 +62,7 @@ void UViperBootUpSubsystem::OnCreateSession(bool bWasSuccessful)
 		if (UWorld* World = GetWorld())
 		{
 			World->ServerTravel(FString("/Game/Maps/Lobby?listen"));
+			CurrentSessionID = SessionID.Right(5);
 		}
 	}
 	else
@@ -64,7 +71,7 @@ void UViperBootUpSubsystem::OnCreateSession(bool bWasSuccessful)
 	}
 }
 
-void UViperBootUpSubsystem::OnFindSessions(const TArray<FOnlineSessionSearchResult>& SessionSearchResults, bool bWasSuccessful)
+void UViperBootUpSubsystem::OnFindSessions(const TArray<FOnlineSessionSearchResult>& SessionSearchResults, bool bWasSuccessful, FString LastSessionCode)
 {
 	if (!ViperSessionsSubsystem) return;
 	
@@ -76,8 +83,18 @@ void UViperBootUpSubsystem::OnFindSessions(const TArray<FOnlineSessionSearchResu
 		
 		Result.Session.SessionSettings.Get(FName("MatchType"),SettingsValue);
 		
-		if (SettingsValue == MatchType)
+		if (LastSessionCode.IsEmpty())
 		{
+			if (SettingsValue == MatchType)
+			{
+				ViperSessionsSubsystem->JoinSession(Result);
+				return;
+			}
+		}
+		
+		if (LastSessionCode == ID.Right(5))
+		{
+			CurrentSessionID = ID.Right(5);
 			ViperSessionsSubsystem->JoinSession(Result);
 			return;
 		}
@@ -86,7 +103,9 @@ void UViperBootUpSubsystem::OnFindSessions(const TArray<FOnlineSessionSearchResu
 	if (!bWasSuccessful || SessionSearchResults.Num() == 0)
 	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString::Printf(TEXT("Failed to find sessions")));
+		CurrentSessionID = "";
 	}
+	OnJoinCodeSessionFounded.Broadcast(false);
 }
 
 void UViperBootUpSubsystem::OnJoinSession(EOnJoinSessionCompleteResult::Type Result)
@@ -95,14 +114,9 @@ void UViperBootUpSubsystem::OnJoinSession(EOnJoinSessionCompleteResult::Type Res
 	{
 		if (IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface())
 		{
-			FString Address;
-	
-			if (SessionInterface->GetResolvedConnectString(NAME_GameSession, Address))
+			if (SessionInterface->GetResolvedConnectString(NAME_GameSession, LastValidAddress))
 			{
-				if (APlayerController* PlayerController = GetWorld()->GetGameInstance()->GetFirstLocalPlayerController())
-				{
-					PlayerController->ClientTravel(Address,ETravelType::TRAVEL_Absolute);
-				}
+					OnJoinCodeSessionFounded.Broadcast(true);
 			}
 		}
 	}
@@ -110,6 +124,8 @@ void UViperBootUpSubsystem::OnJoinSession(EOnJoinSessionCompleteResult::Type Res
 	if (Result != EOnJoinSessionCompleteResult::Success)
 	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString::Printf(TEXT("Failed to Join session")));
+		OnJoinCodeSessionFounded.Broadcast(false);
+		CurrentSessionID = "";
 	}
 }
 
@@ -119,4 +135,15 @@ void UViperBootUpSubsystem::OnDestroySession(bool bWasSuccessful)
 
 void UViperBootUpSubsystem::OnStartSession(bool bWasSuccessful)
 {
+}
+
+void UViperBootUpSubsystem::OpenLobbyLevel()
+{
+	if (LastValidAddress.IsEmpty()) return;
+	
+	if (APlayerController* PlayerController = GetWorld()->GetGameInstance()->GetFirstLocalPlayerController())
+	{
+		PlayerController->ClientTravel(LastValidAddress,ETravelType::TRAVEL_Absolute);
+		LastValidAddress="";
+	}
 }

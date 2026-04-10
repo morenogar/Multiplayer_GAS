@@ -8,6 +8,8 @@
 #include "Player/ViperCharacter.h"
 #include "ViperPlayerCharacter.generated.h"
 
+class UViperObjectDefinition;
+class USphereComponent;
 class UViperAbilitySet;
 class UViperInputConfig;
 class UInputAction;
@@ -27,12 +29,17 @@ public:
 	AViperPlayerCharacter();
 
 	virtual void BeginPlay() override;
+	
+	virtual void Tick(float DeltaTime) override;
 
 	virtual void PawnClientRestart() override;
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	virtual void PossessedBy(AController* NewController) override;
+	
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Viper|Interaction")
+	void BPE_InteractionUpdated(FVector Location, const UViperObjectDefinition* ObjectDefinition);
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Viper|Input")
 	UViperInputConfig* InputConfig;
@@ -42,18 +49,36 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Jump")
 	float JumpCooldown = 0.3f;
+	
+	UPROPERTY(EditAnywhere, Category="Interaction")
+	float MaxInteractDistance = 500.f;
 
+	UPROPERTY(EditAnywhere, Category="Interaction")
+	float MinDotThreshold = 0.5f;
 
 protected:
-
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
+	USphereComponent* InteractionSphere;
+	
 	bool bCanJumpAgain = true;
 	FTimerHandle JumpCooldownHandle;
-
+	
+	
 	UFUNCTION()
 	void ResetJump();
 
 	void InputAbilityInputTagPressed(FGameplayTag InputTag);
 	void InputAbilityInputTagReleased(FGameplayTag InputTag);
+	
+	UFUNCTION()
+	void OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent,AActor* OtherActor,UPrimitiveComponent* OtherComp,int32 OtherBodyIndex,bool bFromSweep,const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent,AActor* OtherActor,UPrimitiveComponent* OtherComp,int32 OtherBodyIndex);
+
+	void UpdateInteractablesInRange();
+	void SelectBestInteractable();
 
 	virtual void Jump() override;
 	virtual void Landed(const FHitResult& Hit) override;
@@ -76,7 +101,13 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, Category= "View")
 	UInputMappingContext* GameplayInputMapping;
-
+	
+	UPROPERTY()
+	TArray<AActor*> InteractableActorsInRange;
+	
+	UPROPERTY()
+	AActor* CurrentInteractable;
+	
 	UFUNCTION()
 	void HandleLookInput(const FInputActionValue& InputActionValue);
 

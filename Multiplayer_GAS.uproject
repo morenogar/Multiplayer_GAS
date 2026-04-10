@@ -14,7 +14,8 @@
 				"UMG",
 				"CommonUI",
 				"EnhancedInput",
-				"ModelViewViewModel"
+				"ModelViewViewModel",
+				"CoreUObject"
 			]
 		}
 	],
@@ -49,6 +50,15 @@
 		{
 			"Name": "SteamSockets",
 			"Enabled": true
+		},
+		{
+			"Name": "NNEDenoiser",
+			"Enabled": false,
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Linux",
+				"Mac"
+			]
 		}
 	]
 }

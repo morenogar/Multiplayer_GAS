@@ -9,8 +9,8 @@
 #include "ViperSessionsSubsystem.generated.h"
 
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FViperOnCreateSessionCompleteDelegate, bool, bWasSuccessful);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FViperOnFindSessionsCompleteDelegate, const TArray<FOnlineSessionSearchResult>& SessionSearch, bool bWasSuccessful);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FViperOnCreateSessionCompleteDelegate, bool, bWasSuccessful, FString, SessionCode);
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FViperOnFindSessionsCompleteDelegate, const TArray<FOnlineSessionSearchResult>& SessionSearch, bool bWasSuccessful, FString SessionCode);
 DECLARE_MULTICAST_DELEGATE_OneParam(FViperOnJoinSessionCompleteDelegate, EOnJoinSessionCompleteResult::Type Result);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FViperOnDestroySessionCompleteDelegate,bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FViperOnStartSessionComplete,bool, bWasSuccessful);
@@ -28,6 +28,7 @@ public:
 	
 	void CreateSession(int32 NumOfPublicConnections,FString MatchType);
 	void FindSession(int32 MaxSearchResults);
+	void FindSessionByCode(FString ID, int32 MaxSearchResults);
 	void JoinSession(const FOnlineSessionSearchResult& SessionSearchResult);
 	void DestroySession();
 	void StartSession();
@@ -54,6 +55,7 @@ private:
 	
 	IOnlineSessionPtr SessionInterface;
 	TSharedPtr<FOnlineSessionSettings> LastSessionSettings;
+	TSharedPtr<FNamedOnlineSession> LastNamedSession;
 	TSharedPtr<FOnlineSessionSearch> LastSessionSearch;
 	
 	FOnCreateSessionCompleteDelegate CreateSessionCompleteDelegate; 
@@ -71,4 +73,5 @@ private:
 	bool bCreatedSessionOnDestroy = false;
 	int32 LastNumOfPublicConnections;
 	FString LastMatchType;
+	FString LastSessionCode;
 };
