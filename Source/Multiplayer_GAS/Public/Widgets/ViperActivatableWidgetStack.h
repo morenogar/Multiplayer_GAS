@@ -37,9 +37,9 @@ protected:
 	virtual void OnWidgetAddedToList(UCommonActivatableWidget& AddedWidget) override;
 	
 private:
-	void OnParentChangedDisplayedWidget(UCommonActivatableWidget* newWidget);
+	void OnParentChangedDisplayedWidget(UCommonActivatableWidget* NewWidget);
 	UFUNCTION()
-	void OnPopupClosed(UViperPopupBase* closedPopup);
+	void OnPopupClosed(UViperPopupBase* ClosedPopup);
 	
 	uint32 bContentAdded : 1; //Defaults to false in initializer list
 };

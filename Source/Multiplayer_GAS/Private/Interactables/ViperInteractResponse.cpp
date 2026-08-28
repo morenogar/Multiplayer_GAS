@@ -6,20 +6,24 @@
 #include "Widgets/ViperHUD.h"
 
 
-void UViperInteractResponse::Interact(APlayerController* player) const
+void UViperInteractResponse::Interact(APlayerController* Player)
 {
 	switch (Type)
 	{
 	case ETargetingInteractResponseType::OpenMenu:
 		{
-			AViperHUD* hud = player->GetHUD<AViperHUD>();
-			if (UViperOverallUILayout* overallUILayout = hud ? hud->GetOverallUILayout() : nullptr)
+			AViperHUD* HUD = Player->GetHUD<AViperHUD>();
+			if (UViperOverallUILayout* OverallUILayout = HUD ? HUD->GetOverallUILayout() : nullptr)
 			{
-				if (UCommonActivatableWidget* activatableWidget = overallUILayout->PushWidgetToLayerStack(MenuUILayer, MenuToOpen))
+				if (UCommonActivatableWidget* ActivatableWidget = OverallUILayout->PushWidgetToLayerStack(MenuUILayer, MenuToOpen))
 				{
-					activatableWidget->OnDeactivated().AddUObject(this, &UViperInteractResponse::MenuClosed);
-					activatableWidget->SetOwningPlayer(player);
-					
+					FInputModeUIOnly InputMode;
+					InteractResponseWidget = ActivatableWidget;
+					Player->SetInputMode(InputMode);
+					Player->SetShowMouseCursor(false);
+					ActivatableWidget->OnDeactivated().AddUObject(this, &UViperInteractResponse::MenuClosed);
+					ActivatableWidget->SetOwningPlayer(Player);
+
 				}
 			}
 		}
@@ -28,15 +32,15 @@ void UViperInteractResponse::Interact(APlayerController* player) const
 	}
 }
 
-void UViperInteractResponse::MenuClosed() const
+void UViperInteractResponse::MenuClosed()
 {
 	if (InteractResponseWidget == nullptr) return;
 	if (APlayerController* PlayerController = InteractResponseWidget->GetOwningPlayer())
 	{
-		AViperHUD* hud = PlayerController->GetHUD<AViperHUD>();
-		if (UViperOverallUILayout* overallUILayout = hud ? hud->GetOverallUILayout() : nullptr)
+		AViperHUD* HUD = PlayerController->GetHUD<AViperHUD>();
+		if (UViperOverallUILayout* OverallUILayout = HUD ? HUD->GetOverallUILayout() : nullptr)
 		{
-			overallUILayout->FindAndRemoveWidgetFromLayer(InteractResponseWidget);
+			OverallUILayout->FindAndRemoveWidgetFromLayer(InteractResponseWidget);
 		}
 		FInputModeGameOnly InputMode;
 		PlayerController->SetInputMode(InputMode);

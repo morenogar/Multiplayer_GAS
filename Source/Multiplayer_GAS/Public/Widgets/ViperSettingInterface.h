@@ -27,8 +27,8 @@ class MULTIPLAYER_GAS_API IViperSettingInterface
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Viper|SettingWidgetInterface")
-	bool GetSettingID(FGameplayTag& outIdTag) const;
-	
+	bool GetSettingID(FGameplayTag& OutIdTag) const;
+
 	 UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Viper|SettingWidgetInterface")
-	 void ConnectSettingVM(UViperSettingBaseVM* viewModelBase);
+	 void ConnectSettingVM(UViperSettingBaseVM* ViewModelBase);
 };

@@ -9,7 +9,6 @@
 #include "ViperWidgetBar.generated.h"
 
 class UViperAbilitySystemComponent;
-class UTextBlock;
 class UProgressBar;
 class UCommonTextBlock;
 /**

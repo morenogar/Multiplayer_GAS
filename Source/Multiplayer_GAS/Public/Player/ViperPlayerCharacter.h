@@ -100,6 +100,9 @@ private:
 	UInputAction* MoveInputAction;
 	
 	UPROPERTY(EditDefaultsOnly, Category= "View")
+	UInputAction* InteractInputAction;
+	
+	UPROPERTY(EditDefaultsOnly, Category= "View")
 	UInputMappingContext* GameplayInputMapping;
 	
 	UPROPERTY()
@@ -109,13 +112,13 @@ private:
 	AActor* CurrentInteractable;
 	
 	UFUNCTION()
-	void HandleLookInput(const FInputActionValue& InputActionValue);
-
-	UFUNCTION()
-    void HandleMoveInput(const FInputActionValue& InputActionValue);
+	void HandleInteract(const FInputActionValue& InputActionValue);
 	
+	UFUNCTION()
+	void HandleLookInput(const FInputActionValue& InputActionValue);
+	
+	UFUNCTION()
+	void HandleMoveInput(const FInputActionValue& InputActionValue);
 
 	FVector GetLookRightDirection() const;
-	FVector GetLookForwardDirection() const;
-	FVector GetMoveForwardDirection() const;
 };

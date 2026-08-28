@@ -45,17 +45,17 @@ void UViperActivatableWidgetStack::OnWidgetAddedToList(UCommonActivatableWidget&
 	{
 		bContentAdded = true;
 
-		if (UViperPopupBase* popup = Cast<UViperPopupBase>(&AddedWidget))
+		if (UViperPopupBase* Popup = Cast<UViperPopupBase>(&AddedWidget))
 		{
-			popup->OnPopupClosed.AddUniqueDynamic(this, &UViperActivatableWidgetStack::OnPopupClosed);
+			Popup->OnPopupClosed.AddUniqueDynamic(this, &UViperActivatableWidgetStack::OnPopupClosed);
 		}
 	}
 }
 
-void UViperActivatableWidgetStack::OnParentChangedDisplayedWidget(UCommonActivatableWidget* newWidget)
+void UViperActivatableWidgetStack::OnParentChangedDisplayedWidget(UCommonActivatableWidget* NewWidget)
 {
 	//OnParentChangedDisplayedWidget is called on construct, so we need to make sure we're coming from having previously added content
-	if ((newWidget == nullptr || newWidget == GetRootContent()) && bContentAdded)
+	if ((NewWidget == nullptr || NewWidget == GetRootContent()) && bContentAdded)
 	{
 		bContentAdded = false;
 		
@@ -64,8 +64,8 @@ void UViperActivatableWidgetStack::OnParentChangedDisplayedWidget(UCommonActivat
 	}
 }
 
-void UViperActivatableWidgetStack::OnPopupClosed(UViperPopupBase* closedPopup)
+void UViperActivatableWidgetStack::OnPopupClosed(UViperPopupBase* ClosedPopup)
 {
-	if (closedPopup != nullptr)
-		RemoveWidget(*closedPopup);
+	if (ClosedPopup != nullptr)
+		RemoveWidget(*ClosedPopup);
 }

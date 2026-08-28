@@ -16,10 +16,10 @@ class MULTIPLAYER_GAS_API UViperGameplayStatics : public UBlueprintFunctionLibra
 	
 public:
 	
-	UFUNCTION(BlueprintCallable, BlueprintPure, meta = (WorldContext = "worldContextObject"))
-	static class AViperPlayerController* GetLocalPlayerController(const UObject* worldContextObject);
-	
-	UFUNCTION(BlueprintCallable, BlueprintPure, meta = (WorldContext = "worldContextObject"))
-	static class AViperPlayerCharacter* GetLocalCharacter(const UObject* worldContextObject);
+	UFUNCTION(BlueprintCallable, BlueprintPure, meta = (WorldContext = "WorldContextObject"))
+	static class AViperPlayerController* GetLocalPlayerController(const UObject* WorldContextObject);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, meta = (WorldContext = "WorldContextObject"))
+	static class AViperPlayerCharacter* GetLocalCharacter(const UObject* WorldContextObject);
 	
 };

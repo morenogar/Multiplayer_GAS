@@ -37,70 +37,70 @@ UViperGameSettingsVM* UViperGameSettingsSubsystem::GetGameSettingsViewModel()
 	return GameSettingsVM;
 }
 
-void UViperGameSettingsSubsystem::PopulateSettingsVM(UViperGameSettingsVM& settingsVM)
+void UViperGameSettingsSubsystem::PopulateSettingsVM(UViperGameSettingsVM& SettingsVM)
 {
 	//Input
-	PopulateInputSettingsGeneral(settingsVM);
-	
+	PopulateInputSettingsGeneral(SettingsVM);
+
 	//Audio
-	PopulateAudioSettings(settingsVM);
-	
+	PopulateAudioSettings(SettingsVM);
+
 	//Visuals
-	PopulateVisualsSettings(settingsVM);
+	PopulateVisualsSettings(SettingsVM);
 }
 
-void UViperGameSettingsSubsystem::PopulateInputSettingsGeneral(UViperGameSettingsVM& settingsVM)
+void UViperGameSettingsSubsystem::PopulateInputSettingsGeneral(UViperGameSettingsVM& SettingsVM)
 {
 	if (GEngine == nullptr) return;
-	
-	if (UViperGameUserSettings* userSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
+
+	if (UViperGameUserSettings* UserSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
 	{
 		TArray<FText>ToggleMultiOptionValues = {
 			GAME_SETTINGS_LOC("Common_Option_On"),
 			GAME_SETTINGS_LOC("Common_Option_Off")
 		};
-		
-		
-		
-		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertMouseX, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(userSettings->GetMouseInvertX(), 1,ToggleMultiOptionValues, false));
-		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertMouseX, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(userSettings->GetMouseInvertX(), 1,ToggleMultiOptionValues, false));
-		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertMouseY, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(userSettings->GetMouseInvertY(), 1,ToggleMultiOptionValues, false));
-		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertStickX, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(userSettings->GetStickInvertX(), 1,ToggleMultiOptionValues, false));
-		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertStickY, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(userSettings->GetStickInvertY(), 1,ToggleMultiOptionValues, false));
-		
-		constexpr float sensDefault = 5.0f;
-		constexpr float sensMin = 0.1f;
-		constexpr float sensMax = 10.0f;
-		constexpr float stepSize = 1.0f;
-		
-		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Input, MouseLookSensitivityX, TAG_SettingCategoryID_Input), FSliderSettingInfo(userSettings->GetMouseLookSensitivityX(), sensDefault, sensMin, sensMax, stepSize));
-		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Input, MouseLookSensitivityY, TAG_SettingCategoryID_Input), FSliderSettingInfo(userSettings->GetMouseLookSensitivityY(), sensDefault, sensMin, sensMax, stepSize));
-		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Input, StickLookSensitivityX, TAG_SettingCategoryID_Input), FSliderSettingInfo(userSettings->GetStickLookSensitivityX(), sensDefault, sensMin, sensMax, stepSize));
-		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Input, StickLookSensitivityY, TAG_SettingCategoryID_Input), FSliderSettingInfo(userSettings->GetStickLookSensitivityY(), sensDefault, sensMin, sensMax, stepSize));
+
+
+
+		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertMouseX, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(UserSettings->GetMouseInvertX(), 1,ToggleMultiOptionValues, false));
+		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertMouseX, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(UserSettings->GetMouseInvertX(), 1,ToggleMultiOptionValues, false));
+		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertMouseY, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(UserSettings->GetMouseInvertY(), 1,ToggleMultiOptionValues, false));
+		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertStickX, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(UserSettings->GetStickInvertX(), 1,ToggleMultiOptionValues, false));
+		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Input, InvertStickY, TAG_SettingCategoryID_Input), FMultiOptionSettingInfo(UserSettings->GetStickInvertY(), 1,ToggleMultiOptionValues, false));
+
+		constexpr float SensDefault = 5.0f;
+		constexpr float SensMin = 0.1f;
+		constexpr float SensMax = 10.0f;
+		constexpr float StepSize = 1.0f;
+
+		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Input, MouseLookSensitivityX, TAG_SettingCategoryID_Input), FSliderSettingInfo(UserSettings->GetMouseLookSensitivityX(), SensDefault, SensMin, SensMax, StepSize));
+		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Input, MouseLookSensitivityY, TAG_SettingCategoryID_Input), FSliderSettingInfo(UserSettings->GetMouseLookSensitivityY(), SensDefault, SensMin, SensMax, StepSize));
+		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Input, StickLookSensitivityX, TAG_SettingCategoryID_Input), FSliderSettingInfo(UserSettings->GetStickLookSensitivityX(), SensDefault, SensMin, SensMax, StepSize));
+		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Input, StickLookSensitivityY, TAG_SettingCategoryID_Input), FSliderSettingInfo(UserSettings->GetStickLookSensitivityY(), SensDefault, SensMin, SensMax, StepSize));
 	}
 }
 
-void UViperGameSettingsSubsystem::PopulateAudioSettings(UViperGameSettingsVM& settingsVM)
+void UViperGameSettingsSubsystem::PopulateAudioSettings(UViperGameSettingsVM& SettingsVM)
 {
 	if (GEngine == nullptr) return;
-	
-	if (UViperGameUserSettings* userSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
+
+	if (UViperGameUserSettings* UserSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
 	{
-		constexpr float sensDefault = 0.5f;
-		constexpr float sensMin = 0.0f;
-		constexpr float sensMax = 5.0f;
-		constexpr float stepSize = 1.0f;
-		
-		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Audio, MainVolume, TAG_SettingCategoryID_Volume), FSliderSettingInfo(userSettings->GetMainVolume(), sensDefault, sensMin, sensMax, stepSize));
-		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Audio, MusicVolume, TAG_SettingCategoryID_Volume), FSliderSettingInfo(userSettings->GetMusicVolume(), sensDefault, sensMin, sensMax, stepSize));
+		constexpr float SensDefault = 0.5f;
+		constexpr float SensMin = 0.0f;
+		constexpr float SensMax = 5.0f;
+		constexpr float StepSize = 1.0f;
+
+		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Audio, MainVolume, TAG_SettingCategoryID_Volume), FSliderSettingInfo(UserSettings->GetMainVolume(), SensDefault, SensMin, SensMax, StepSize));
+		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Audio, MusicVolume, TAG_SettingCategoryID_Volume), FSliderSettingInfo(UserSettings->GetMusicVolume(), SensDefault, SensMin, SensMax, StepSize));
 	}
 }
 
-void UViperGameSettingsSubsystem::PopulateVisualsSettings(UViperGameSettingsVM& settingsVM)
+void UViperGameSettingsSubsystem::PopulateVisualsSettings(UViperGameSettingsVM& SettingsVM)
 {
 	if (GEngine == nullptr) return;
-	
-	if (UViperGameUserSettings* userSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
+
+	if (UViperGameUserSettings* UserSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
 	{
 		TArray<FText>ToggleMultiOptionValues = {
 			GAME_SETTINGS_LOC("Common_Option_Quality0"),
@@ -108,157 +108,157 @@ void UViperGameSettingsSubsystem::PopulateVisualsSettings(UViperGameSettingsVM& 
 			GAME_SETTINGS_LOC("Common_Option_Quality2"),
 			GAME_SETTINGS_LOC("Common_Option_Quality3")
 		};
-		
-		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Visuals, GeneralQuality, TAG_SettingCategoryID_Graphics), FMultiOptionSettingInfo(userSettings->GetGeneralQuality(), 2,ToggleMultiOptionValues, true));
-		
-		constexpr float sensDefault = 80.0f;
-		constexpr float sensMin = 70.0f;
-		constexpr float sensMax = 100.0f;
-		constexpr float stepSize = 1.0f;
-		
-		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Visuals, CameraFOV, TAG_SettingCategoryID_Graphics), FSliderSettingInfo(userSettings->GetCameraFOV(), sensDefault, sensMin, sensMax, stepSize));
+
+		CreateAndRegisterSettingMultiOption(GAME_SETTINGS_BASIC_INFO_EX(Visuals, GeneralQuality, TAG_SettingCategoryID_Graphics), FMultiOptionSettingInfo(UserSettings->GetGeneralQuality(), 2,ToggleMultiOptionValues, true));
+
+		constexpr float SensDefault = 80.0f;
+		constexpr float SensMin = 70.0f;
+		constexpr float SensMax = 100.0f;
+		constexpr float StepSize = 1.0f;
+
+		CreateAndRegisterSettingSlider(GAME_SETTINGS_BASIC_INFO_EX(Visuals, CameraFOV, TAG_SettingCategoryID_Graphics), FSliderSettingInfo(UserSettings->GetCameraFOV(), SensDefault, SensMin, SensMax, StepSize));
 	}
 }
 
-void UViperGameSettingsSubsystem::CreateAndRegisterSettingSlider(FBasicSettingInfo settingInfo,
-	FSliderSettingInfo sliderSettingInfo)
+void UViperGameSettingsSubsystem::CreateAndRegisterSettingSlider(FBasicSettingInfo SettingInfo,
+	FSliderSettingInfo SliderSettingInfo)
 {
 	if (GameSettingsVM == nullptr)
 		return;
-	
-	UViperSliderSettingVM* sliderVM = NewObject<UViperSliderSettingVM>();
-	sliderVM->SetSettingID(settingInfo.Id);
-	sliderVM->SetSettingName(settingInfo.Name);
-	sliderVM->SetSettingDescription(settingInfo.Description);
-	sliderVM->SetSettingCategoryID(settingInfo.CategoryID);
 
-	sliderVM->SetSliderValue(sliderSettingInfo.CurrentValue);
-	sliderVM->SetDefaultSliderValue(sliderSettingInfo.DefaultValue);
-	sliderVM->SetMinValue(sliderSettingInfo.MinValue);
-	sliderVM->SetMaxValue(sliderSettingInfo.MaxValue);
-	sliderVM->SetStepSize(sliderSettingInfo.StepSize);
-	
-	GameSettingsVM->AddGameSettingEntry(settingInfo.Id, sliderVM);
-	
-	const UE::FieldNotification::FFieldMulticastDelegate::FDelegate sliderChangedDelegate = UE::FieldNotification::FFieldMulticastDelegate::FDelegate::CreateUObject(this, &UViperGameSettingsSubsystem::OnSettingSliderChanged);
-	sliderVM->AddFieldValueChangedDelegate(UViperSliderSettingVM::FFieldNotificationClassDescriptor::SliderValue, sliderChangedDelegate);
+	UViperSliderSettingVM* SliderVM = NewObject<UViperSliderSettingVM>();
+	SliderVM->SetSettingID(SettingInfo.Id);
+	SliderVM->SetSettingName(SettingInfo.Name);
+	SliderVM->SetSettingDescription(SettingInfo.Description);
+	SliderVM->SetSettingCategoryID(SettingInfo.CategoryID);
+
+	SliderVM->SetSliderValue(SliderSettingInfo.CurrentValue);
+	SliderVM->SetDefaultSliderValue(SliderSettingInfo.DefaultValue);
+	SliderVM->SetMinValue(SliderSettingInfo.MinValue);
+	SliderVM->SetMaxValue(SliderSettingInfo.MaxValue);
+	SliderVM->SetStepSize(SliderSettingInfo.StepSize);
+
+	GameSettingsVM->AddGameSettingEntry(SettingInfo.Id, SliderVM);
+
+	const UE::FieldNotification::FFieldMulticastDelegate::FDelegate SliderChangedDelegate = UE::FieldNotification::FFieldMulticastDelegate::FDelegate::CreateUObject(this, &UViperGameSettingsSubsystem::OnSettingSliderChanged);
+	SliderVM->AddFieldValueChangedDelegate(UViperSliderSettingVM::FFieldNotificationClassDescriptor::SliderValue, SliderChangedDelegate);
 }
 
-void UViperGameSettingsSubsystem::CreateAndRegisterSettingMultiOption(FBasicSettingInfo settingInfo,
-	FMultiOptionSettingInfo multiOptionSettingInfo)
+void UViperGameSettingsSubsystem::CreateAndRegisterSettingMultiOption(FBasicSettingInfo SettingInfo,
+	FMultiOptionSettingInfo MultiOptionSettingInfo)
 {
 	if (GameSettingsVM == nullptr)
 		return;
-	
-	UViperMultiOptionSettingVM* multiOptionVM = NewObject<UViperMultiOptionSettingVM>();
-	multiOptionVM->SetSettingID(settingInfo.Id);
-	multiOptionVM->SetSettingName(settingInfo.Name);
-	multiOptionVM->SetSettingDescription(settingInfo.Description);
-	multiOptionVM->SetSettingCategoryID(settingInfo.CategoryID);
 
-	multiOptionVM->SetSelectedOptionIndex(multiOptionSettingInfo.CurrentOptionIndex);
-	multiOptionVM->SetDefaultOptionIndex(multiOptionSettingInfo.DefaultOptionIndex);
-	multiOptionVM->SetOptionTexts(multiOptionSettingInfo.OptionTexts);
-	multiOptionVM->SetRequireConfirmation(multiOptionSettingInfo.DoesOptionRequireConfirmation);
-	
-	GameSettingsVM->AddGameSettingEntry(settingInfo.Id, multiOptionVM);
+	UViperMultiOptionSettingVM* MultiOptionVM = NewObject<UViperMultiOptionSettingVM>();
+	MultiOptionVM->SetSettingID(SettingInfo.Id);
+	MultiOptionVM->SetSettingName(SettingInfo.Name);
+	MultiOptionVM->SetSettingDescription(SettingInfo.Description);
+	MultiOptionVM->SetSettingCategoryID(SettingInfo.CategoryID);
 
-	const UE::FieldNotification::FFieldMulticastDelegate::FDelegate multiOptionChangedDelegate =UE::FieldNotification::FFieldMulticastDelegate::FDelegate::CreateUObject(this, &UViperGameSettingsSubsystem::OnSettingMultiOptionChanged);
-	multiOptionVM->AddFieldValueChangedDelegate(UViperMultiOptionSettingVM::FFieldNotificationClassDescriptor::SelectedOptionIndex, multiOptionChangedDelegate);
+	MultiOptionVM->SetSelectedOptionIndex(MultiOptionSettingInfo.CurrentOptionIndex);
+	MultiOptionVM->SetDefaultOptionIndex(MultiOptionSettingInfo.DefaultOptionIndex);
+	MultiOptionVM->SetOptionTexts(MultiOptionSettingInfo.OptionTexts);
+	MultiOptionVM->SetRequireConfirmation(MultiOptionSettingInfo.bDoesOptionRequireConfirmation);
+
+	GameSettingsVM->AddGameSettingEntry(SettingInfo.Id, MultiOptionVM);
+
+	const UE::FieldNotification::FFieldMulticastDelegate::FDelegate MultiOptionChangedDelegate =UE::FieldNotification::FFieldMulticastDelegate::FDelegate::CreateUObject(this, &UViperGameSettingsSubsystem::OnSettingMultiOptionChanged);
+	MultiOptionVM->AddFieldValueChangedDelegate(UViperMultiOptionSettingVM::FFieldNotificationClassDescriptor::SelectedOptionIndex, MultiOptionChangedDelegate);
 }
 
-void UViperGameSettingsSubsystem::OnSettingSliderChanged(UObject* vmObject, UE::FieldNotification::FFieldId fieldId)
+void UViperGameSettingsSubsystem::OnSettingSliderChanged(UObject* VMObject, UE::FieldNotification::FFieldId FieldId)
 {
-	if (UViperSliderSettingVM* sliderSettingVM = Cast<UViperSliderSettingVM>(vmObject))
+	if (UViperSliderSettingVM* SliderSettingVM = Cast<UViperSliderSettingVM>(VMObject))
 	{
-		const FGameplayTag settingId = sliderSettingVM->GetSettingId();
-		const float sliderValue = sliderSettingVM->GetSliderValue();
+		const FGameplayTag SettingId = SliderSettingVM->GetSettingId();
+		const float SliderValue = SliderSettingVM->GetSliderValue();
 
-		if (UViperGameUserSettings* userSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
+		if (UViperGameUserSettings* UserSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
 		{
-			if(settingId == TAG_GameSettingsID_CameraFOV)
+			if(SettingId == TAG_GameSettingsID_CameraFOV)
 			{
-				userSettings->SetCameraFOV(sliderValue);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetCameraFOV(SliderValue);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (settingId == TAG_GameSettingsID_MouseLookSensitivityX)
+			else if (SettingId == TAG_GameSettingsID_MouseLookSensitivityX)
 			{
-				userSettings->SetMouseLookSensitivityX(sliderValue);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetMouseLookSensitivityX(SliderValue);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (settingId == TAG_GameSettingsID_MouseLookSensitivityY)
+			else if (SettingId == TAG_GameSettingsID_MouseLookSensitivityY)
 			{
-				userSettings->SetMouseLookSensitivityY(sliderValue);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetMouseLookSensitivityY(SliderValue);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (settingId == TAG_GameSettingsID_StickLookSensitivityX)
+			else if (SettingId == TAG_GameSettingsID_StickLookSensitivityX)
 			{
-				userSettings->SetStickLookSensitivityX(sliderValue);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetStickLookSensitivityX(SliderValue);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (settingId == TAG_GameSettingsID_StickLookSensitivityY)
+			else if (SettingId == TAG_GameSettingsID_StickLookSensitivityY)
 			{
-				userSettings->SetStickLookSensitivityY(sliderValue);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetStickLookSensitivityY(SliderValue);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (settingId == TAG_GameSettingsID_MainVolume)
+			else if (SettingId == TAG_GameSettingsID_MainVolume)
 			{
-				userSettings->SetMainVolume(sliderValue);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetMainVolume(SliderValue);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (settingId == TAG_GameSettingsID_MusicVolume)
+			else if (SettingId == TAG_GameSettingsID_MusicVolume)
 			{
-				userSettings->SetMusicVolume(sliderValue);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetMusicVolume(SliderValue);
+				UserSettings->ApplyNonResolutionSettings();
 			}
 		}
 
-		OnSettingUpdated.Broadcast(settingId);
+		OnSettingUpdated.Broadcast(SettingId);
 	}
 }
 
-void UViperGameSettingsSubsystem::OnSettingMultiOptionChanged(UObject* vmObject,UE::FieldNotification::FFieldId fieldId)
+void UViperGameSettingsSubsystem::OnSettingMultiOptionChanged(UObject* VMObject,UE::FieldNotification::FFieldId FieldId)
 {
-	
-	if (UViperMultiOptionSettingVM* multiOptionVM = Cast<UViperMultiOptionSettingVM>(vmObject))
+
+	if (UViperMultiOptionSettingVM* MultiOptionVM = Cast<UViperMultiOptionSettingVM>(VMObject))
 	{
-		const FGameplayTag multiOptionId = multiOptionVM->GetSettingId();
-		const bool multiOptionIndexBool = static_cast<bool>(multiOptionVM->GetSelectedOptionIndex());
-		const int32 multiOptionIndex = static_cast<int32>(multiOptionVM->GetSelectedOptionIndex());
-		const TArray<FText>& optionTexts = multiOptionVM->GetOptionTexts();
-		const bool bIsValidIndex = optionTexts.IsValidIndex(multiOptionIndex);
-		
+		const FGameplayTag MultiOptionId = MultiOptionVM->GetSettingId();
+		const bool MultiOptionIndexBool = static_cast<bool>(MultiOptionVM->GetSelectedOptionIndex());
+		const int32 MultiOptionIndex = static_cast<int32>(MultiOptionVM->GetSelectedOptionIndex());
+		const TArray<FText>& OptionTexts = MultiOptionVM->GetOptionTexts();
+		const bool bIsValidIndex = OptionTexts.IsValidIndex(MultiOptionIndex);
+
 		if (bIsValidIndex == false) return;
-	
-		if (UViperGameUserSettings* userSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
+
+		if (UViperGameUserSettings* UserSettings = Cast<UViperGameUserSettings>(GEngine->GetGameUserSettings()))
 		{
-			if (multiOptionId == TAG_GameSettingsID_InvertMouseX)
+			if (MultiOptionId == TAG_GameSettingsID_InvertMouseX)
 			{
-				userSettings->SetMouseInvertX(multiOptionIndexBool);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetMouseInvertX(MultiOptionIndexBool);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (multiOptionId == TAG_GameSettingsID_InvertMouseY)
+			else if (MultiOptionId == TAG_GameSettingsID_InvertMouseY)
 			{
-				userSettings->SetMouseInvertY(multiOptionIndexBool);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetMouseInvertY(MultiOptionIndexBool);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (multiOptionId == TAG_GameSettingsID_InvertStickX)
+			else if (MultiOptionId == TAG_GameSettingsID_InvertStickX)
 			{
-				userSettings->SetStickInvertX(multiOptionIndexBool);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetStickInvertX(MultiOptionIndexBool);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (multiOptionId == TAG_GameSettingsID_InvertStickY)
+			else if (MultiOptionId == TAG_GameSettingsID_InvertStickY)
 			{
-				userSettings->SetStickInvertY(multiOptionIndexBool);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetStickInvertY(MultiOptionIndexBool);
+				UserSettings->ApplyNonResolutionSettings();
 			}
-			else if (multiOptionId == TAG_GameSettingsID_GeneralQuality)
+			else if (MultiOptionId == TAG_GameSettingsID_GeneralQuality)
 			{
-				userSettings->SetGeneralQuality(multiOptionIndex);
-				userSettings->ApplyNonResolutionSettings();
+				UserSettings->SetGeneralQuality(MultiOptionIndex);
+				UserSettings->ApplyNonResolutionSettings();
 			}
 		}
-		
-		OnSettingUpdated.Broadcast(multiOptionId);
+
+		OnSettingUpdated.Broadcast(MultiOptionId);
 	}
 }

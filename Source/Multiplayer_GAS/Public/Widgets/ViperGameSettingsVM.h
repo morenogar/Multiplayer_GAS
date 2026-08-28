@@ -59,8 +59,7 @@ public:
 	const TMap<FGameplayTag, UViperSettingBaseVM*>& GetSettingsContainer() const { return SettingsContainer; }
 	void SetSettingsContainer(const TMap<FGameplayTag, UViperSettingBaseVM*>& NewSettingsContainer);
 	
-	void AddGameSettingEntry(const FGameplayTag& gameplayTag, UViperSettingBaseVM* settingVM);
-	void RemoveGameSettingEntry(const FGameplayTag& gameplayTag);
+	void AddGameSettingEntry(const FGameplayTag& GameplayTag, UViperSettingBaseVM* SettingVM);
 
 	UFUNCTION(BlueprintCallable)
 	bool ResetAllSettingsToDefaults();

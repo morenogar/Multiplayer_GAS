@@ -31,16 +31,16 @@ public:
 	static void PopContentFromLayer(UCommonActivatableWidget* ActivatableWidget);
 	
 	UFUNCTION(BlueprintCallable, meta = (DefaultToSelf = "Widget"))
-	static TScriptInterface<IViperSettingManagerInterface> SearchUpWidgetHierarchyForSettingWidgetManager(UWidget* widget);
+	static TScriptInterface<IViperSettingManagerInterface> SearchUpWidgetHierarchyForSettingWidgetManager(UWidget* Widget);
 
 	UFUNCTION(BlueprintCallable, meta = (DefaultToSelf = "Widget"))
-	static TScriptInterface<IViperPopupProviderInterface> SearchUpWidgetHierarchyForPopupProvider(UWidget* widget);
+	static TScriptInterface<IViperPopupProviderInterface> SearchUpWidgetHierarchyForPopupProvider(UWidget* Widget);
 
 	UFUNCTION(BlueprintPure)
-	static FViperUIButtonCallback TryGetCallbackFromUIButtonData(UPARAM(Ref)const FViperUICallbackButtonData& inButtonData, bool& outCallbackWasBound);
-	
+	static FViperUIButtonCallback TryGetCallbackFromUIButtonData(UPARAM(Ref)const FViperUICallbackButtonData& InButtonData, bool& OutCallbackWasBound);
+
 	UFUNCTION(BlueprintPure)
-	static bool TryAssignCallbackToButtonData(UPARAM(Ref)const FViperUIButtonData& inButtonData, UPARAM(Ref)const FViperUIButtonCallback& callback, FViperUICallbackButtonData& outButtonData);
+	static bool TryAssignCallbackToButtonData(UPARAM(Ref)const FViperUIButtonData& InButtonData, UPARAM(Ref)const FViperUIButtonCallback& Callback, FViperUICallbackButtonData& OutButtonData);
 
 
 private:
@@ -55,22 +55,22 @@ private:
 			return TScriptInterface<IInterfaceType>(InWidget);
 		}
 		
-		TSharedPtr<SWidget> widgetWalker = InWidget->GetCachedWidget();
-		
-		while (widgetWalker)
+		TSharedPtr<SWidget> WidgetWalker = InWidget->GetCachedWidget();
+
+		while (WidgetWalker)
 		{
-			if (widgetWalker->GetType().IsEqual(TEXT("SObjectWidget")))
+			if (WidgetWalker->GetType().IsEqual(TEXT("SObjectWidget")))
 			{
-				if (UUserWidget* userWidget = StaticCastSharedPtr<SObjectWidget>(widgetWalker)->GetWidgetObject())
+				if (UUserWidget* UserWidget = StaticCastSharedPtr<SObjectWidget>(WidgetWalker)->GetWidgetObject())
 				{
-					if (userWidget->Implements<UInterfaceType>())
+					if (UserWidget->Implements<UInterfaceType>())
 					{
-						TScriptInterface<IInterfaceType> newScriptInterface(userWidget);
-						return newScriptInterface;
+						TScriptInterface<IInterfaceType> NewScriptInterface(UserWidget);
+						return NewScriptInterface;
 					}
 				}
 			}
-			widgetWalker = widgetWalker->GetParentWidget();
+			WidgetWalker = WidgetWalker->GetParentWidget();
 		}
 		return TScriptInterface<IInterfaceType>();
 	}

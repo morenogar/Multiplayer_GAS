@@ -28,13 +28,13 @@ public:
 	//INPUT
 	
 	UFUNCTION(BlueprintCallable, Category="Settings|Input")
-	void SetMouseLookSensitivityX(float sensitivity);
+	void SetMouseLookSensitivityX(float Sensitivity);
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Input")
 	float GetMouseLookSensitivityX() const;
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Input")
-	void SetMouseLookSensitivityY(float sensitivity);
+	void SetMouseLookSensitivityY(float Sensitivity);
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Input")
 	float GetMouseLookSensitivityY() const;
@@ -52,13 +52,13 @@ public:
 	bool GetMouseInvertY() const;
 	
 	UFUNCTION(BlueprintCallable, Category="Settings|Input")
-	void SetStickLookSensitivityX(float sensitivity);
+	void SetStickLookSensitivityX(float Sensitivity);
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Input")
 	float GetStickLookSensitivityX() const;
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Input")
-	void SetStickLookSensitivityY(float sensitivity);
+	void SetStickLookSensitivityY(float Sensitivity);
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Input")
 	float GetStickLookSensitivityY() const;
@@ -84,26 +84,26 @@ public:
 	bool GetMonoAudioEnabled() const;
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Audio")
-	void SetMainVolume(float volume);
+	void SetMainVolume(float Volume);
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Audio")
 	float GetMainVolume() const;
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Audio")
-	void SetMusicVolume(float volume);
+	void SetMusicVolume(float Volume);
 
 	UFUNCTION(BlueprintCallable, Category="Settings|Audio")
 	float GetMusicVolume() const;
 	
 	//GRAPHICS
 	UFUNCTION(BlueprintCallable, Category=Settings)
-	void SetCameraFOV(float cameraFOV);
+	void SetCameraFOV(float NewCameraFOV);
 
 	UFUNCTION(BlueprintCallable, Category=Settings)
 	float GetCameraFOV() const;
-	
+
 	UFUNCTION(BlueprintCallable, Category=Settings)
-	void SetGeneralQuality(int32 generalQuality);
+	void SetGeneralQuality(int32 NewGeneralQuality);
 
 	UFUNCTION(BlueprintCallable, Category=Settings)
 	int32 GetGeneralQuality() const;

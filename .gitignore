@@ -81,3 +81,21 @@ Plugins/*/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# Claude Code: ajustes personales (settings.json compartido si algun dia se anade)
+.claude/settings.local.json
+
+# Solucion de Visual Studio, formato nuevo (generada)
+*.slnx
+
+# Ajustes personales de Rider
+*.DotSettings.user
+
+# Metadatos de carpeta de Windows
+desktop.ini
+
+# Mapa de pruebas y sus actores de World Partition
+Content/Maps/Claude_Map.umap
+Content/Maps/Claude_Map_HLOD0_Instancing.uasset
+Content/__ExternalActors__/Maps/Claude_Map/
+Content/__ExternalObjects__/Maps/Claude_Map/

@@ -39,7 +39,6 @@ ActivatableWidgetT* PushWidgetToLayerStack(FGameplayTag LayerName, UClass* Activ
 
 	void FindAndRemoveWidgetFromLayer(UCommonActivatableWidget* ActivatableWidget);
 
-	void ClearAllWidgets();
 	
 	UCommonActivatableWidgetContainerBase* GetLayerWidget(FGameplayTag LayerName);
 	

@@ -9,32 +9,22 @@
 // Sets default values
 AViperAbilityActor::AViperAbilityActor()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
-
 }
 
 // Called when the game starts or when spawned
 void AViperAbilityActor::BeginPlay()
 {
 	Super::BeginPlay();
-	
-}
-
-// Called every frame
-void AViperAbilityActor::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
 
 }
 
 const UViperObjectDefinition* AViperAbilityActor::GetObjectDefinition() const
 {
-	if (UWorld* world = GEngine->GetWorldFromContextObject(this, EGetWorldErrorMode::LogAndReturnNull))
+	if (UWorld* World = GEngine->GetWorldFromContextObject(this, EGetWorldErrorMode::LogAndReturnNull))
 	{
-		if (UGameInstance* gameInstance = world->GetGameInstance())
+		if (UGameInstance* GameInstance = World->GetGameInstance())
 		{
-			if (UViperObjectDefinitionSubsystem* ObjectDefinitionSubsystem = gameInstance->GetSubsystem<UViperObjectDefinitionSubsystem>())
+			if (UViperObjectDefinitionSubsystem* ObjectDefinitionSubsystem = GameInstance->GetSubsystem<UViperObjectDefinitionSubsystem>())
 				return ObjectDefinitionSubsystem->GetObjectDefinition(ObjectDefinition);
 		}
 	}

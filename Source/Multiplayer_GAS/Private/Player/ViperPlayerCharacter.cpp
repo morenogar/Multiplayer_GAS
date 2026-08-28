@@ -53,14 +53,14 @@ void AViperPlayerCharacter::BeginPlay()
 	if (GetNetMode() == NM_Client)
 	{
 		// ability sets should be granted replicated already, try to activate the on spawn granted abilities
-		for (auto abilitySpec : ViperAbilitySystemComponent->GetActivatableAbilities())
+		for (auto AbilitySpec : ViperAbilitySystemComponent->GetActivatableAbilities())
 		{
-			UViperBaseGameplayAbility* ability = Cast<UViperBaseGameplayAbility>(abilitySpec.Ability);
-			if (!ability || ability->GetActivationPolicy() != EViperAbilityActivationPolicy::OnSpawn)
+			UViperBaseGameplayAbility* Ability = Cast<UViperBaseGameplayAbility>(AbilitySpec.Ability);
+			if (!Ability || Ability->GetActivationPolicy() != EViperAbilityActivationPolicy::OnSpawn)
 			{
 				continue;
 			}
-			ability->TryActivateAbilityOnSpawn(ViperAbilitySystemComponent->AbilityActorInfo.Get(), abilitySpec);
+			Ability->TryActivateAbilityOnSpawn(ViperAbilitySystemComponent->AbilityActorInfo.Get(), AbilitySpec);
 		}
 	}
 	
@@ -100,6 +100,7 @@ void AViperPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 		EnhancedInputComponent->BindAction(JumpInputAction, ETriggerEvent::Triggered, this, &AViperPlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(LookInputAction, ETriggerEvent::Triggered, this, &AViperPlayerCharacter::HandleLookInput);
 		EnhancedInputComponent->BindAction(MoveInputAction, ETriggerEvent::Triggered, this, &AViperPlayerCharacter::HandleMoveInput);
+		EnhancedInputComponent->BindAction(InteractInputAction, ETriggerEvent::Triggered, this, &AViperPlayerCharacter::HandleInteract);
 		
 		if (AViperEIC && InputConfig)
 		{
@@ -115,7 +116,7 @@ void AViperPlayerCharacter::PossessedBy(AController* NewController)
 
 	if (GetNetMode() < NM_Client && ViperAbilitySystemComponent)
 	{
-		auto lambda = [this]()
+		auto Lambda = [this]()
 		{
 			if (!IsValid(this))
 			{
@@ -129,24 +130,24 @@ void AViperPlayerCharacter::PossessedBy(AController* NewController)
 			{
 				return;
 			}
-			
+
 			ViperAbilitySystemComponent->InitAbilityActorInfo(this, this);
 			// only grant abilities on authoritative systems
 			ViperAbilitySystemComponent->GrantDefaultAbilities(AbilitySets);
 			// can try to activate any server on spawn abilities immediately
-			for (auto abilitySpec : ViperAbilitySystemComponent->GetActivatableAbilities())
+			for (auto AbilitySpec : ViperAbilitySystemComponent->GetActivatableAbilities())
 			{
-				UViperBaseGameplayAbility* ability = Cast<UViperBaseGameplayAbility>(abilitySpec.Ability);
-				if (!ability || ability->GetActivationPolicy() != EViperAbilityActivationPolicy::OnSpawn)
+				UViperBaseGameplayAbility* Ability = Cast<UViperBaseGameplayAbility>(AbilitySpec.Ability);
+				if (!Ability || Ability->GetActivationPolicy() != EViperAbilityActivationPolicy::OnSpawn)
 				{
 					continue;
 				}
-				ability->TryActivateAbilityOnSpawn(ViperAbilitySystemComponent->AbilityActorInfo.Get(), abilitySpec);
+				Ability->TryActivateAbilityOnSpawn(ViperAbilitySystemComponent->AbilityActorInfo.Get(), AbilitySpec);
 			}
 		};
-		
-		FTimerHandle handle;
-		GetWorldTimerManager().SetTimer(handle, FTimerDelegate::CreateWeakLambda(this, lambda), 1.0f, false);
+
+		FTimerHandle Handle;
+		GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, Lambda), 1.0f, false);
 	}
 
 	SetOwner(NewController);
@@ -200,102 +201,100 @@ void AViperPlayerCharacter::SelectBestInteractable()
 {
 	CurrentInteractable = nullptr;
 
-    FVector CamLoc;
-    FRotator CamRot;
-    GetController()->GetPlayerViewPoint(CamLoc, CamRot);
+	if(APlayerController* OwningPlayerController = GetController<APlayerController>())
+	{
+		FVector CamLoc;
+	    FRotator CamRot;
+	    OwningPlayerController->GetPlayerViewPoint(CamLoc, CamRot);
 
-    FVector Forward = CamRot.Vector();
-	
-    FHitResult Hit;
-    FVector TraceEnd = CamLoc + (Forward * MaxInteractDistance);
+	    FVector Forward = CamRot.Vector();
+		
+	    FHitResult Hit;
+	    FVector TraceEnd = CamLoc + (Forward * MaxInteractDistance);
 
-    FCollisionQueryParams Params;
-    Params.AddIgnoredActor(this);
+	    FCollisionQueryParams Params;
+	    Params.AddIgnoredActor(this);
 
-    bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, CamLoc, TraceEnd, ECC_Visibility, Params);
-	
-	if (bHit)
-		DrawDebugSphere(GetWorld(), Hit.ImpactPoint, 10.f, 12, FColor::Red, false, 0.f);
+	    bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, CamLoc, TraceEnd, ECC_Visibility, Params);
+		
+		if (bHit)
+			DrawDebugSphere(GetWorld(), Hit.ImpactPoint, 10.f, 12, FColor::Red, false, 0.f);
 
-    if (bHit && Hit.GetActor() && Hit.GetActor()->GetClass()->ImplementsInterface(UViperObjectDefinitionInterface::StaticClass()))
-    {
-        CurrentInteractable = Hit.GetActor();
+	    if (bHit && Hit.GetActor() && Hit.GetActor()->GetClass()->ImplementsInterface(UViperObjectDefinitionInterface::StaticClass()))
+	    {
+	        CurrentInteractable = Hit.GetActor();
 
-        DrawDebugSphere(GetWorld(), CurrentInteractable->GetActorLocation(), 25.f, 12, FColor::Red, false, 0.1f);
-    	
-    	// 1. Cast the Actor to the Interface pointer (prefixed with 'I')
-    	IViperObjectDefinitionInterface* InterfaceInstance = Cast<IViperObjectDefinitionInterface>(CurrentInteractable);
-
-    	if (InterfaceInstance)
-    	{
-    		// 2. Call the function directly
-    		if (const UViperObjectDefinition* ObjDef = InterfaceInstance->GetObjectDefinition())
+	        DrawDebugSphere(GetWorld(), CurrentInteractable->GetActorLocation(), 25.f, 12, FColor::Red, false, 0.1f);
+    		
+    		if (IViperObjectDefinitionInterface* InterfaceInstance = Cast<IViperObjectDefinitionInterface>(CurrentInteractable))
     		{
-    			BPE_InteractionUpdated(CurrentInteractable->GetActorLocation(), ObjDef);
+    			// 2. Call the function directly
+    			if (const UViperObjectDefinition* ObjDef = InterfaceInstance->GetObjectDefinition())
+    			{
+    				BPE_InteractionUpdated(CurrentInteractable->GetActorLocation(), ObjDef);
+    				
+    				UE_LOG(LogTemp, Log, TEXT("Raycast hit: %s"), *ObjDef->GetDisplayName().ToString());
+    				return;
+    			}
+    		}
+	    }
+		
+	    if (InteractableActorsInRange.Num() == 0)
+	    {
+    		BPE_InteractionUpdated(FVector(0.0f,0.0f,0.0f), nullptr);
+    		return;
+	    }
+
+	    float BestScore = -1.f;
+
+		for (AActor* Actor : InteractableActorsInRange)
+		{
+			if (!Actor) continue;
+
+			// 🔹 Dirección desde la cámara (lo que el jugador ve)
+			FVector DirToActor = (Actor->GetActorLocation() - CamLoc).GetSafeNormal();
+			float Dot = FVector::DotProduct(Forward, DirToActor);
+
+			// 🔹 Filtrar por ángulo (cono de visión)
+			if (Dot < MinDotThreshold)
+				continue;
+
+			// 🔹 Distancia desde el personaje (lo que puede alcanzar)
+			float Distance = FVector::Dist(GetActorLocation(), Actor->GetActorLocation());
+
+			if (Distance > MaxInteractDistance)
+				continue;
+
+			// 🔹 Score combinado (prioriza centro de pantalla + cercanía)
+			float Score = Dot - (Distance * 0.001f);
+
+			if (Score > BestScore)
+			{
+				BestScore = Score;
+				CurrentInteractable = Actor;
+			}
+		}
+
+	    if (CurrentInteractable)
+	    {
+	        //FText Text = IViperInteractableInterface::Execute_GetInteractText(CurrentInteractable);
+
+	        DrawDebugSphere(GetWorld(), CurrentInteractable->GetActorLocation(), 25.f, 12, FColor::Green, false, 0.1f);
+    		
+    		if (IViperObjectDefinitionInterface* InterfaceInstance = Cast<IViperObjectDefinitionInterface>(CurrentInteractable))
+    		{
+    			if (const UViperObjectDefinition* ObjDef = InterfaceInstance->GetObjectDefinition())
+    			{
+    				BPE_InteractionUpdated(CurrentInteractable->GetActorLocation(), ObjDef);
+    				UE_LOG(LogTemp, Log, TEXT("Raycast hit: %s"), *ObjDef->GetDisplayName().ToString());
+    			}
     			
-    			UE_LOG(LogTemp, Log, TEXT("Raycast hit: %s"), *ObjDef->GetDisplayName().ToString());
     			return;
     		}
-    	}
-    }
-	
-    if (InteractableActorsInRange.Num() == 0)
-    {
-    	BPE_InteractionUpdated(FVector(0.0f,0.0f,0.0f), nullptr);
-    	return;
-    }
-
-    float BestScore = -1.f;
-
-	for (AActor* Actor : InteractableActorsInRange)
-	{
-		if (!Actor) continue;
-
-		// 🔹 Dirección desde la cámara (lo que el jugador ve)
-		FVector DirToActor = (Actor->GetActorLocation() - CamLoc).GetSafeNormal();
-		float Dot = FVector::DotProduct(Forward, DirToActor);
-
-		// 🔹 Filtrar por ángulo (cono de visión)
-		if (Dot < MinDotThreshold)
-			continue;
-
-		// 🔹 Distancia desde el personaje (lo que puede alcanzar)
-		float Distance = FVector::Dist(GetActorLocation(), Actor->GetActorLocation());
-
-		if (Distance > MaxInteractDistance)
-			continue;
-
-		// 🔹 Score combinado (prioriza centro de pantalla + cercanía)
-		float Score = Dot - (Distance * 0.001f);
-
-		if (Score > BestScore)
-		{
-			BestScore = Score;
-			CurrentInteractable = Actor;
-		}
+	    }
+		
+		BPE_InteractionUpdated(FVector(0.0f,0.0f,0.0f), nullptr);
 	}
-
-    if (CurrentInteractable)
-    {
-        //FText Text = IViperInteractableInterface::Execute_GetInteractText(CurrentInteractable);
-
-        DrawDebugSphere(GetWorld(), CurrentInteractable->GetActorLocation(), 25.f, 12, FColor::Green, false, 0.1f);
-    	
-    	IViperObjectDefinitionInterface* InterfaceInstance = Cast<IViperObjectDefinitionInterface>(CurrentInteractable);
-
-    	if (InterfaceInstance)
-    	{
-    		if (const UViperObjectDefinition* ObjDef = InterfaceInstance->GetObjectDefinition())
-    		{
-    			BPE_InteractionUpdated(CurrentInteractable->GetActorLocation(), ObjDef);
-    			UE_LOG(LogTemp, Log, TEXT("Raycast hit: %s"), *ObjDef->GetDisplayName().ToString());
-    		}
-    		
-    		return;
-    	}
-    }
-	
-	BPE_InteractionUpdated(FVector(0.0f,0.0f,0.0f), nullptr);
 }
 
 void AViperPlayerCharacter::Jump()
@@ -313,21 +312,42 @@ void AViperPlayerCharacter::Landed(const FHitResult& Hit)
 	GetWorldTimerManager().SetTimer(JumpCooldownHandle, this, &AViperPlayerCharacter::ResetJump, JumpCooldown, false);
 }
 
+void AViperPlayerCharacter::HandleInteract(const FInputActionValue& InputActionValue)
+{
+	if (CurrentInteractable == nullptr) return;
+	
+	if (IViperInteractableInterface* InterfaceInstance = Cast<IViperInteractableInterface>(CurrentInteractable))
+	{
+		if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+			InterfaceInstance->Interact(PlayerController);
+	}
+}
+
 void AViperPlayerCharacter::HandleLookInput(const FInputActionValue& InputActionValue)
 {
 	FVector2d InputValue  = InputActionValue.Get<FVector2d>();
 
 	AddControllerPitchInput(InputValue.Y * -1);
 	AddControllerYawInput(InputValue.X);
-	
 }
 
 void AViperPlayerCharacter::HandleMoveInput(const FInputActionValue& InputActionValue)
 {
 	FVector2d InputValue  = InputActionValue.Get<FVector2d>();
-	InputValue.Normalize();
-
-	AddMovementInput(GetMoveForwardDirection() * InputValue.Y + GetLookRightDirection() * InputValue.X);
+	
+	if(Controller != nullptr && InputValue.Y != 0.0)
+	{
+		const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
+		const FVector Direction(FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X));
+		AddMovementInput(Direction, InputValue.Y);
+	}
+	
+	if(Controller != nullptr && InputValue.X != 0.0)
+	{
+		const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
+		const FVector Direction(FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y));
+		AddMovementInput(Direction, InputValue.X);
+	}
 }
 
 FVector AViperPlayerCharacter::GetLookRightDirection() const
@@ -335,12 +355,3 @@ FVector AViperPlayerCharacter::GetLookRightDirection() const
 	return ViewCamera->GetRightVector();
 }
 
-FVector AViperPlayerCharacter::GetLookForwardDirection() const
-{
-	return ViewCamera->GetForwardVector();
-}
-
-FVector AViperPlayerCharacter::GetMoveForwardDirection() const
-{
-	return FVector::CrossProduct(GetLookRightDirection(),FVector::UpVector);
-}

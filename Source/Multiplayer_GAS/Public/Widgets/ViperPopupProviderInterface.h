@@ -29,8 +29,8 @@ struct FViperUIButtonData
 	{}
 };
 
-DECLARE_DYNAMIC_DELEGATE_OneParam(FPopupChoiceCallback, UViperPopupBase*, caller);
-DECLARE_DYNAMIC_DELEGATE_OneParam(FViperUIButtonCallback, FViperUIButtonData, buttonData);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FPopupChoiceCallback, UViperPopupBase*, Caller);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FViperUIButtonCallback, FViperUIButtonData, ButtonData);
 
 USTRUCT(BlueprintType)
 struct FViperUICallbackButtonData
@@ -73,14 +73,14 @@ class MULTIPLAYER_GAS_API IViperPopupProviderInterface
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Viper|PopupProviderInterface")
-	void DisplayConfirmCancelPopup(const FPopupInfo& popupInfo, const FPopupChoiceCallback& confirmCallback, const FPopupChoiceCallback& cancelCallback, FViperConfirmCancelPopupOverrides overrides);
-	virtual void DisplayConfirmCancelPopup_Implementation(const FPopupInfo& popupInfo, const FPopupChoiceCallback& confirmCallback, const FPopupChoiceCallback& cancelCallback, FViperConfirmCancelPopupOverrides overrides);
-	
+	void DisplayConfirmCancelPopup(const FPopupInfo& PopupInfo, const FPopupChoiceCallback& ConfirmCallback, const FPopupChoiceCallback& CancelCallback, FViperConfirmCancelPopupOverrides Overrides);
+	virtual void DisplayConfirmCancelPopup_Implementation(const FPopupInfo& PopupInfo, const FPopupChoiceCallback& ConfirmCallback, const FPopupChoiceCallback& CancelCallback, FViperConfirmCancelPopupOverrides Overrides);
+
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Viper|PopupProviderInterface")
-	void DisplayMultiOptionPopup(const FPopupInfo& popupInfo, UPARAM(Ref)const TArray<FViperUICallbackButtonData>& options, const FPopupChoiceCallback& popupClosedCallback, int32 preHoveredOption = -1);
-	virtual void DisplayMultiOptionPopup_Implementation(const FPopupInfo& popupInfo, UPARAM(Ref)const TArray<FViperUICallbackButtonData>& options, const FPopupChoiceCallback& popupClosedCallback, int32 initialHoveredOption = -1);
-	
+	void DisplayMultiOptionPopup(const FPopupInfo& PopupInfo, UPARAM(Ref)const TArray<FViperUICallbackButtonData>& Options, const FPopupChoiceCallback& PopupClosedCallback, int32 InitialHoveredOption = -1);
+	virtual void DisplayMultiOptionPopup_Implementation(const FPopupInfo& PopupInfo, UPARAM(Ref)const TArray<FViperUICallbackButtonData>& Options, const FPopupChoiceCallback& PopupClosedCallback, int32 InitialHoveredOption = -1);
+
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Viper|PopupProviderInterface")
-	UViperPopupBase* GenerateAndDisplayCustomPopup(TSubclassOf<UViperPopupBase> popupClass, const bool bIsVisualOnly = false);
-	virtual UViperPopupBase* GenerateAndDisplayCustomPopup_Implementation(TSubclassOf<UViperPopupBase> popupClass, const bool bIsVisualOnly = false);
+	UViperPopupBase* GenerateAndDisplayCustomPopup(TSubclassOf<UViperPopupBase> PopupClass, const bool bIsVisualOnly = false);
+	virtual UViperPopupBase* GenerateAndDisplayCustomPopup_Implementation(TSubclassOf<UViperPopupBase> PopupClass, const bool bIsVisualOnly = false);
 };

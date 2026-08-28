@@ -22,7 +22,7 @@ enum class ETargetingInteractResponseType : uint8
 /**
  * 
  */
-UCLASS()
+UCLASS(BlueprintType)
 class MULTIPLAYER_GAS_API UViperInteractResponse : public UObject
 {
 	GENERATED_BODY()
@@ -38,12 +38,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (Categories = "UI.Layer", EditCondition = "Type == ETargetingInteractResponseType::OpenMenu", EditConditionHides))
 	FGameplayTag MenuUILayer;
 	
-	void Interact(APlayerController* player) const;
+	void Interact(APlayerController* Player);
 	
 	UFUNCTION()
-	void MenuClosed() const;
+	void MenuClosed();
 	
 protected:
 	
-	TObjectPtr<UCommonActivatableWidget> InteractResponseWidget;
+	UPROPERTY()
+	UCommonActivatableWidget* InteractResponseWidget;
+
 };

@@ -40,9 +40,9 @@ public:
 	FGuid GetUserID() const { return UserID; }
 	void SetUserID(const FGuid& NewUserID) { UE_MVVM_SET_PROPERTY_VALUE(UserID, NewUserID); }
 	
-	bool GetRemoveFromSquad() const { return RemoveFromSquad; }
-	void SetRemoveFromSquad(const bool& NewRemoveFromSquad) { UE_MVVM_SET_PROPERTY_VALUE(RemoveFromSquad, NewRemoveFromSquad); }
-	
+	bool GetRemoveFromSquad() const { return bRemoveFromSquad; }
+	void SetRemoveFromSquad(const bool& NewRemoveFromSquad) { UE_MVVM_SET_PROPERTY_VALUE(bRemoveFromSquad, NewRemoveFromSquad); }
+
 private:
 	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter, meta=(AllowPrivateAccess=true))
 	FString UserName;
@@ -53,8 +53,8 @@ private:
 	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter, meta=(AllowPrivateAccess=true))
 	FGuid UserID;
 
-	UPROPERTY(BlueprintReadWrite, FieldNotify, Getter, Setter, meta=(AllowPrivateAccess=true))
-	bool RemoveFromSquad;
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Getter=GetRemoveFromSquad, Setter=SetRemoveFromSquad, meta=(AllowPrivateAccess=true))
+	bool bRemoveFromSquad;
 };
 
 
@@ -76,8 +76,8 @@ public:
 	FGuid GetSquadID() const { return SquadID; }
 	void SetSquadID(const FGuid& NewSquadID) { UE_MVVM_SET_PROPERTY_VALUE(SquadID, NewSquadID); }
 
-	bool GetCreateNewSquad() const { return CreateNewSquad; }
-	void SetCreateNewSquad(const bool& NewCreateNewSquad) { UE_MVVM_SET_PROPERTY_VALUE(CreateNewSquad, NewCreateNewSquad); }
+	bool GetCreateNewSquad() const { return bCreateNewSquad; }
+	void SetCreateNewSquad(const bool& NewCreateNewSquad) { UE_MVVM_SET_PROPERTY_VALUE(bCreateNewSquad, NewCreateNewSquad); }
 
 	
 private:
@@ -93,8 +93,8 @@ private:
 	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter, meta=(AllowPrivateAccess=true))
 	FGuid SquadID;
 
-	UPROPERTY(BlueprintReadWrite, FieldNotify, Getter, Setter, meta=(AllowPrivateAccess=true))
-	bool CreateNewSquad;
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Getter=GetCreateNewSquad, Setter=SetCreateNewSquad, meta=(AllowPrivateAccess=true))
+	bool bCreateNewSquad;
 };
 
 

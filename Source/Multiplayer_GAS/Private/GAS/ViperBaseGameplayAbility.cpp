@@ -10,8 +10,8 @@
 
 void UViperBaseGameplayAbility::TryActivateAbilityOnSpawn(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) const
 {
-	const UGameplayAbility* gapi = Spec.GetPrimaryInstance();
-	const bool bIsPredicting = (gapi && gapi->GetCurrentActivationInfo().ActivationMode == EGameplayAbilityActivationMode::Predicting);
+	const UGameplayAbility* GAPI = Spec.GetPrimaryInstance();
+	const bool bIsPredicting = (GAPI && GAPI->GetCurrentActivationInfo().ActivationMode == EGameplayAbilityActivationMode::Predicting);
 
 	if (ActorInfo && !Spec.IsActive() && !bIsPredicting && (ActivationPolicy == EViperAbilityActivationPolicy::OnSpawn))
 	{
@@ -43,15 +43,15 @@ AViperCharacter* UViperBaseGameplayAbility::GetOwningCharacter() const
 AViperPlayerController* UViperBaseGameplayAbility::GetOwningPlayerController() const
 {
 	// Try PlayerController, but this is allowed to be null
-	if (AViperPlayerController* controller = Cast<AViperPlayerController>(GetActorInfo().PlayerController.Get()))
+	if (AViperPlayerController* Controller = Cast<AViperPlayerController>(GetActorInfo().PlayerController.Get()))
 	{
-		return controller;
+		return Controller;
 	}
 
 	// Next try OwnerActor, which is guaranteed to be populated (but might not be a character)
-	if (AViperCharacter* owner = GetOwningCharacter())
+	if (AViperCharacter* Owner = GetOwningCharacter())
 	{
-		return Cast<AViperPlayerController>(owner->GetController());
+		return Cast<AViperPlayerController>(Owner->GetController());
 	}
 
 	return nullptr;

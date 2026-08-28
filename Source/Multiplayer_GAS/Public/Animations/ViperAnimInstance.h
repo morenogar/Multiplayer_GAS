@@ -40,10 +40,13 @@ public:
 	FORCEINLINE float GetSmoothedYawSpeed() const {return SmoothedYawSpeed;}
 
 	UFUNCTION(BlueprintCallable, meta=(BlueprintThreadSafe))
-	FORCEINLINE bool GetIsJumping() const {return bIsJumping;}
+	FORCEINLINE bool GetIsInAir() const {return bIsInAir;}
+	
+	UFUNCTION(BlueprintCallable, meta=(BlueprintThreadSafe))
+	FORCEINLINE bool GetIsAccelerating() const {return bIsAccelerating;}
 
 	UFUNCTION(BlueprintCallable, meta=(BlueprintThreadSafe))
-	FORCEINLINE bool GetIsOnGround() const {return bIsJumping == false;}
+	FORCEINLINE bool GetIsOnGround() const {return bIsInAir == false;}
 
 	UFUNCTION(BlueprintCallable, meta=(BlueprintThreadSafe))
 	FORCEINLINE float GetLookYawOffset() const {return LookRotationOffset.Yaw;}
@@ -65,7 +68,8 @@ private:
 	float Speed;
 	float YawSpeed;
 	float SmoothedYawSpeed;
-	bool bIsJumping;
+	bool bIsInAir;
+	bool bIsAccelerating;
 	
 	FRotator BodyPreviousRotation;
 	FRotator LookRotationOffset;

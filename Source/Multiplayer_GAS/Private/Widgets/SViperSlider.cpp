@@ -106,9 +106,9 @@ FNavigationReply SViperSlider::OnNavigation(const FGeometry& MyGeometry, const F
 	if (IsLocked())
 		return FNavigationReply::Stop();
 
-	const float stepDir = (NavType == EUINavigation::Left || NavType == EUINavigation::Down) ? -1.0f : 1.0f; 
+	const float StepDir = (NavType == EUINavigation::Left || NavType == EUINavigation::Down) ? -1.0f : 1.0f;
 
-	CommitValue(FMath::Clamp(GetValue() + GetStepSize() * stepDir, MinValue, MaxValue));
+	CommitValue(FMath::Clamp(GetValue() + GetStepSize() * StepDir, MinValue, MaxValue));
 	OnAnalogCapture.ExecuteIfBound(GetValue());
 
 	return FNavigationReply::Explicit(nullptr);
@@ -133,11 +133,6 @@ void SViperSlider::Construct(const FArguments& InArgs)
 void SViperSlider::SetUsingGamepad(const bool InValue)
 {
 	bUsingGamepad = InValue;
-}
-
-float SViperSlider::GetStepTime() const
-{
-	return StepTime.Get();
 }
 
 void SViperSlider::SetStepTime(TAttribute<float> InStepSize)

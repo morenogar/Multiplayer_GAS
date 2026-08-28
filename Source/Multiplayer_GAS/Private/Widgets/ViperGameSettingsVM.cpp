@@ -48,15 +48,9 @@ void UViperGameSettingsVM::SetSettingsContainer(const TMap<FGameplayTag, UViperS
 	UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(SettingsContainer);
 }
 
-void UViperGameSettingsVM::AddGameSettingEntry(const FGameplayTag& gameplayTag, UViperSettingBaseVM* settingVM)
+void UViperGameSettingsVM::AddGameSettingEntry(const FGameplayTag& GameplayTag, UViperSettingBaseVM* SettingVM)
 {
-	SettingsContainer.FindOrAdd(gameplayTag) = settingVM;
-	UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(SettingsContainer);
-}
-
-void UViperGameSettingsVM::RemoveGameSettingEntry(const FGameplayTag& gameplayTag)
-{
-	SettingsContainer.Remove(gameplayTag);
+	SettingsContainer.FindOrAdd(GameplayTag) = SettingVM;
 	UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(SettingsContainer);
 }
 

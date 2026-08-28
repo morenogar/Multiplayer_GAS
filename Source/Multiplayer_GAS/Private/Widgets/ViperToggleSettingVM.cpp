@@ -3,17 +3,17 @@
 
 #include "Widgets/ViperToggleSettingVM.h"
 
-void UViperToggleSettingVM::SetToggleValue(const bool newToggleValue)
+void UViperToggleSettingVM::SetToggleValue(const bool NewToggleValue)
 {
-	UE_MVVM_SET_PROPERTY_VALUE(ToggleValue, newToggleValue);
+	UE_MVVM_SET_PROPERTY_VALUE(bToggleValue, NewToggleValue);
 }
 
-void UViperToggleSettingVM::SetDefaultToggleValue(const bool newDefaultToggleValue)
+void UViperToggleSettingVM::SetDefaultToggleValue(const bool NewDefaultToggleValue)
 {
-	UE_MVVM_SET_PROPERTY_VALUE(DefaultToggleValue, newDefaultToggleValue);
+	UE_MVVM_SET_PROPERTY_VALUE(bDefaultToggleValue, NewDefaultToggleValue);
 }
 
 bool UViperToggleSettingVM::RevertToDefaults()
 {
-	return UE_MVVM_SET_PROPERTY_VALUE(ToggleValue, DefaultToggleValue);
+	return UE_MVVM_SET_PROPERTY_VALUE(bToggleValue, bDefaultToggleValue);
 }

@@ -36,11 +36,13 @@ void UViperAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 		FRotator ControlRotation = OwnerCharacter->GetBaseAimRotation();
 		LookRotationOffset = UKismetMathLibrary::NormalizedDeltaRotator(ControlRotation,BodyRotation);
+		
+		bIsAccelerating = OwnerMovementComp->GetCurrentAcceleration().Size() > 0.f;
 	}
 
 	if(OwnerMovementComp)
 	{
-		bIsJumping = OwnerMovementComp->IsFalling();
+		bIsInAir = OwnerMovementComp->IsFalling();
 	}
 }
 

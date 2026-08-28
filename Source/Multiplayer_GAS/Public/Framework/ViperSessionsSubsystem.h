@@ -26,6 +26,9 @@ public:
 	
 	UViperSessionsSubsystem();
 	
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+	
 	void CreateSession(int32 NumOfPublicConnections,FString MatchType);
 	void FindSession(int32 MaxSearchResults);
 	void FindSessionByCode(FString ID, int32 MaxSearchResults);
@@ -55,7 +58,6 @@ private:
 	
 	IOnlineSessionPtr SessionInterface;
 	TSharedPtr<FOnlineSessionSettings> LastSessionSettings;
-	TSharedPtr<FNamedOnlineSession> LastNamedSession;
 	TSharedPtr<FOnlineSessionSearch> LastSessionSearch;
 	
 	FOnCreateSessionCompleteDelegate CreateSessionCompleteDelegate; 

@@ -3,14 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/Object.h"
-#include "ViperIteractResponse.generated.h"
+#include "GameFramework/GameMode.h"
+#include "ViperLobbyGameMode.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class MULTIPLAYER_GAS_API UViperIteractResponse : public UObject
+class MULTIPLAYER_GAS_API AViperLobbyGameMode : public AGameMode
 {
 	GENERATED_BODY()
 	

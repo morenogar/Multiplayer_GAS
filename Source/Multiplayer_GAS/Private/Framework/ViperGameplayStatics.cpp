@@ -7,14 +7,14 @@
 #include "Player/ViperPlayerController.h"
 
 
-AViperPlayerController* UViperGameplayStatics::GetLocalPlayerController(const UObject* worldContextObject)
+AViperPlayerController* UViperGameplayStatics::GetLocalPlayerController(const UObject* WorldContextObject)
 {
-	if (!IsValid(worldContextObject))
+	if (!IsValid(WorldContextObject))
 	{
 		return nullptr;
 	}
-	
-	if (UWorld* World = GEngine->GetWorldFromContextObject(worldContextObject, EGetWorldErrorMode::LogAndReturnNull))
+
+	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
 		APlayerController* Controller = GEngine->GetFirstLocalPlayerController(World);
 		if (AViperPlayerController* ViperController = Cast<AViperPlayerController>(Controller))
@@ -26,8 +26,8 @@ AViperPlayerController* UViperGameplayStatics::GetLocalPlayerController(const UO
 	return nullptr;
 }
 
-AViperPlayerCharacter* UViperGameplayStatics::GetLocalCharacter(const UObject* worldContextObject)
+AViperPlayerCharacter* UViperGameplayStatics::GetLocalCharacter(const UObject* WorldContextObject)
 {
-	AViperPlayerController* localController = GetLocalPlayerController(worldContextObject);
-	return localController ? Cast<AViperPlayerCharacter>(localController->GetPawn()) : nullptr;
+	AViperPlayerController* LocalController = GetLocalPlayerController(WorldContextObject);
+	return LocalController ? Cast<AViperPlayerCharacter>(LocalController->GetPawn()) : nullptr;
 }

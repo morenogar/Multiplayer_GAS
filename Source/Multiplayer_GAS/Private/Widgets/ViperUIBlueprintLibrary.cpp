@@ -42,35 +42,35 @@ void UViperUIBlueprintLibrary::PopContentFromLayer(UCommonActivatableWidget* Act
 	}
 }
 
-TScriptInterface<IViperSettingManagerInterface> UViperUIBlueprintLibrary::SearchUpWidgetHierarchyForSettingWidgetManager(UWidget* widget)
+TScriptInterface<IViperSettingManagerInterface> UViperUIBlueprintLibrary::SearchUpWidgetHierarchyForSettingWidgetManager(UWidget* Widget)
 {
-	return SearchUpSWidgetHierarchyForWidgetWithInterface<IViperSettingManagerInterface, UViperSettingManagerInterface>(widget);
+	return SearchUpSWidgetHierarchyForWidgetWithInterface<IViperSettingManagerInterface, UViperSettingManagerInterface>(Widget);
 }
 
-TScriptInterface<IViperPopupProviderInterface> UViperUIBlueprintLibrary::SearchUpWidgetHierarchyForPopupProvider(UWidget* widget)
+TScriptInterface<IViperPopupProviderInterface> UViperUIBlueprintLibrary::SearchUpWidgetHierarchyForPopupProvider(UWidget* Widget)
 {
-	return SearchUpSWidgetHierarchyForWidgetWithInterface<IViperPopupProviderInterface, UViperPopupProviderInterface>(widget);
+	return SearchUpSWidgetHierarchyForWidgetWithInterface<IViperPopupProviderInterface, UViperPopupProviderInterface>(Widget);
 }
 
-FViperUIButtonCallback UViperUIBlueprintLibrary::TryGetCallbackFromUIButtonData(const FViperUICallbackButtonData& inButtonData, bool& outCallbackWasBound)
+FViperUIButtonCallback UViperUIBlueprintLibrary::TryGetCallbackFromUIButtonData(const FViperUICallbackButtonData& InButtonData, bool& OutCallbackWasBound)
 {
-	outCallbackWasBound = false;
-	
-	if (inButtonData.Callback.IsBound() == false)
+	OutCallbackWasBound = false;
+
+	if (InButtonData.Callback.IsBound() == false)
 		return FViperUIButtonCallback();
 
-	outCallbackWasBound = true;
-	return inButtonData.Callback;
+	OutCallbackWasBound = true;
+	return InButtonData.Callback;
 }
 
-bool UViperUIBlueprintLibrary::TryAssignCallbackToButtonData(const FViperUIButtonData& inButtonData,
-	const FViperUIButtonCallback& callback, FViperUICallbackButtonData& outButtonData)
+bool UViperUIBlueprintLibrary::TryAssignCallbackToButtonData(const FViperUIButtonData& InButtonData,
+	const FViperUIButtonCallback& Callback, FViperUICallbackButtonData& OutButtonData)
 {
-	if (callback.IsBound() == false)
+	if (Callback.IsBound() == false)
 		return false;
 
-	outButtonData.ButtonData = inButtonData;
-	outButtonData.Callback = callback;
+	OutButtonData.ButtonData = InButtonData;
+	OutButtonData.Callback = Callback;
 
 	return true;
 }

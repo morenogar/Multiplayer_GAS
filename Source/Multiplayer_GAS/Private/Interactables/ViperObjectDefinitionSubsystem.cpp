@@ -6,11 +6,11 @@
 #include "Engine/AssetManager.h"
 #include "Interactables/ViperObjectDefinition.h"
 
-UViperObjectDefinition* UViperObjectDefinitionSubsystem::GetObjectDefinition(const FPrimaryAssetId& assetID)
+UViperObjectDefinition* UViperObjectDefinitionSubsystem::GetObjectDefinition(const FPrimaryAssetId& AssetID)
 {
-	if (ObjectDefinitionMap.Contains(assetID))
+	if (ObjectDefinitionMap.Contains(AssetID))
 	{
-		return ObjectDefinitionMap[assetID];
+		return ObjectDefinitionMap[AssetID];
 	}
 
 	return nullptr;
@@ -19,28 +19,28 @@ UViperObjectDefinition* UViperObjectDefinitionSubsystem::GetObjectDefinition(con
 void UViperObjectDefinitionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	
-	UAssetManager& assetManager = UAssetManager::Get();
 
-	TArray<FPrimaryAssetId> thingDefList;
-	assetManager.GetPrimaryAssetIdList(FPrimaryAssetType(FName(TEXT("ViperObject"))),thingDefList);
+	UAssetManager& AssetManager = UAssetManager::Get();
 
-	for (const FPrimaryAssetId& def : thingDefList)
+	TArray<FPrimaryAssetId> ThingDefList;
+	AssetManager.GetPrimaryAssetIdList(FPrimaryAssetType(FName(TEXT("ViperObject"))),ThingDefList);
+
+	for (const FPrimaryAssetId& Def : ThingDefList)
 	{
-		FStreamableDelegate callback = FStreamableDelegate::CreateWeakLambda(this,[def, this]()
+		FStreamableDelegate Callback = FStreamableDelegate::CreateWeakLambda(this,[Def, this]()
 		{
-			UAssetManager& assetManager = UAssetManager::Get();
-			if (UObject* obj = assetManager.GetPrimaryAssetObject(def))
+			UAssetManager& AssetManager = UAssetManager::Get();
+			if (UObject* Obj = AssetManager.GetPrimaryAssetObject(Def))
 			{
-				if (UViperObjectDefinition* thingDef = Cast<UViperObjectDefinition>(obj))
+				if (UViperObjectDefinition* ThingDef = Cast<UViperObjectDefinition>(Obj))
 				{
-					ObjectDefinitionMap.FindOrAdd(def) = thingDef;
+					ObjectDefinitionMap.FindOrAdd(Def) = ThingDef;
 				}
 			}
-			
+
 			AssetLoadFinished();
 		});
-		assetManager.LoadPrimaryAsset(def, TArray<FName>(), callback);
+		AssetManager.LoadPrimaryAsset(Def, TArray<FName>(), Callback);
 	}
 }
 

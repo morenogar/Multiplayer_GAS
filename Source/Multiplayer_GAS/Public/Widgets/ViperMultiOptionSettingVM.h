@@ -24,7 +24,7 @@ public:
 	const TArray<FText>& GetOptionTexts() const { return OptionTexts; }
 	void SetOptionTexts(const TArray<FText>& NewOptionsTexts);
 	
-	bool GetRequireConfirmation() const { return RequireConfirmation; }
+	bool GetRequireConfirmation() const { return bRequireConfirmation; }
 	void SetRequireConfirmation(const bool bNewRequireConfirmation);
 
 	virtual bool RevertToDefaults() override;
@@ -39,6 +39,6 @@ private:
 	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter, meta=(AllowPrivateAccess=true))
 	TArray<FText> OptionTexts;
 	
-	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter, meta=(AllowPrivateAccess=true))
-	bool RequireConfirmation = false;
+	UPROPERTY(BlueprintReadOnly, FieldNotify, Getter=GetRequireConfirmation, meta=(AllowPrivateAccess=true))
+	bool bRequireConfirmation = false;
 };

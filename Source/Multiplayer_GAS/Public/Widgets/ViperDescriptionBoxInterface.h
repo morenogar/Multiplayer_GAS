@@ -25,5 +25,5 @@ public:
 	
 	//Default description box populate function
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Viper|DescriptionBoxInterface")
-	void UpdateDescriptionBox(UObject* caller, const FText& inTitle, const FText& inDescription);
+	void UpdateDescriptionBox(UObject* Caller, const FText& InTitle, const FText& InDescription);
 };

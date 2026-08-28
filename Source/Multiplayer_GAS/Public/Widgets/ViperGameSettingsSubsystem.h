@@ -34,14 +34,14 @@ struct FBasicSettingInfo
 	FBasicSettingInfo()
 	{}
 
-	FBasicSettingInfo(const FGameplayTag& id, 
-		FText name,
-		FText description,
-		FGameplayTag categoryID)
-		: Id(id)
-		, Name(name)
-		, Description(description)
-		, CategoryID(categoryID)
+	FBasicSettingInfo(const FGameplayTag& InId,
+		FText InName,
+		FText InDescription,
+		FGameplayTag InCategoryID)
+		: Id(InId)
+		, Name(InName)
+		, Description(InDescription)
+		, CategoryID(InCategoryID)
 	{}
 };
 
@@ -84,7 +84,7 @@ struct FMultiOptionSettingInfo
 	TArray<FText> OptionTexts = TArray<FText>();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool DoesOptionRequireConfirmation = false;
+	bool bDoesOptionRequireConfirmation = false;
 };
 
 UCLASS()
@@ -97,16 +97,16 @@ public:
 	UFUNCTION(BlueprintPure)
 	UViperGameSettingsVM* GetGameSettingsViewModel();
 	
-	void PopulateSettingsVM(UViperGameSettingsVM& settingsVM);
-	void PopulateInputSettingsGeneral(UViperGameSettingsVM& settingsVM);
-	void PopulateAudioSettings(UViperGameSettingsVM& settingsVM);
-	void PopulateVisualsSettings(UViperGameSettingsVM& settingsVM);
-	
-	void CreateAndRegisterSettingSlider(FBasicSettingInfo settingInfo, FSliderSettingInfo sliderSettingInfo);
-	void CreateAndRegisterSettingMultiOption(FBasicSettingInfo settingInfo, FMultiOptionSettingInfo multiOptionSettingInfo);
-	
-	void OnSettingSliderChanged(UObject* vmObject, UE::FieldNotification::FFieldId fieldId);
-	void OnSettingMultiOptionChanged(UObject* vmObject, UE::FieldNotification::FFieldId fieldId);
+	void PopulateSettingsVM(UViperGameSettingsVM& SettingsVM);
+	void PopulateInputSettingsGeneral(UViperGameSettingsVM& SettingsVM);
+	void PopulateAudioSettings(UViperGameSettingsVM& SettingsVM);
+	void PopulateVisualsSettings(UViperGameSettingsVM& SettingsVM);
+
+	void CreateAndRegisterSettingSlider(FBasicSettingInfo SettingInfo, FSliderSettingInfo SliderSettingInfo);
+	void CreateAndRegisterSettingMultiOption(FBasicSettingInfo SettingInfo, FMultiOptionSettingInfo MultiOptionSettingInfo);
+
+	void OnSettingSliderChanged(UObject* VMObject, UE::FieldNotification::FFieldId FieldId);
+	void OnSettingMultiOptionChanged(UObject* VMObject, UE::FieldNotification::FFieldId FieldId);
 	
 	UPROPERTY(BlueprintAssignable)
 	FSettingUpdated OnSettingUpdated;

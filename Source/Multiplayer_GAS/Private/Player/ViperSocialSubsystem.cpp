@@ -109,7 +109,7 @@ UViperUserVM* UViperSocialSubsystem::RandomizeUser()
  
 
     User->AddFieldValueChangedDelegate(
-    UViperUserVM::FFieldNotificationClassDescriptor::RemoveFromSquad, UE::FieldNotification::FFieldMulticastDelegate::FDelegate::CreateUObject(this, &UViperSocialSubsystem::OnRemovedUserFromSquadChange));
+    UViperUserVM::FFieldNotificationClassDescriptor::bRemoveFromSquad, UE::FieldNotification::FFieldMulticastDelegate::FDelegate::CreateUObject(this, &UViperSocialSubsystem::OnRemovedUserFromSquadChange));
     
     return User;
 }

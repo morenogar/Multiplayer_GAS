@@ -11,14 +11,6 @@ void UViperOverallUILayout::FindAndRemoveWidgetFromLayer(UCommonActivatableWidge
 	}
 }
 
-void UViperOverallUILayout::ClearAllWidgets()
-{
-	for (const auto& LayerKVP : Layers)
-	{
-		LayerKVP.Value->ClearWidgets();
-	}
-}
-
 UCommonActivatableWidgetContainerBase* UViperOverallUILayout::GetLayerWidget(FGameplayTag LayerName)
 {
 	return Layers.FindRef(LayerName);

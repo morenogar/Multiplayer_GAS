@@ -16,7 +16,7 @@ class MULTIPLAYER_GAS_API UViperObjectDefinitionSubsystem : public UGameInstance
 	GENERATED_BODY()
 public:
 	UFUNCTION(BlueprintPure, Category = "AgoraThingSubsystem")
-	UViperObjectDefinition* GetObjectDefinition(const FPrimaryAssetId& assetID);
+	UViperObjectDefinition* GetObjectDefinition(const FPrimaryAssetId& AssetID);
 	
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	

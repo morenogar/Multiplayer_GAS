@@ -18,9 +18,9 @@ void UViperMultiOptionSettingVM::SetOptionTexts(const TArray<FText>& NewOptionsT
 	UE_MVVM_SET_PROPERTY_VALUE(OptionTexts, NewOptionsTexts);
 }
 
-void UViperMultiOptionSettingVM::SetRequireConfirmation(const bool NewbRequireConfirmation)
+void UViperMultiOptionSettingVM::SetRequireConfirmation(const bool bNewRequireConfirmation)
 {
-	UE_MVVM_SET_PROPERTY_VALUE(RequireConfirmation, NewbRequireConfirmation);
+	UE_MVVM_SET_PROPERTY_VALUE(bRequireConfirmation, bNewRequireConfirmation);
 }
 
 bool UViperMultiOptionSettingVM::RevertToDefaults()

@@ -85,8 +85,6 @@ public:
 	void Construct(const FArguments& InArgs);
 	void SetUsingGamepad(const bool InValue);
 	
-	float GetStepTime() const;
-	
 	void SetStepTime(TAttribute<float> InStepSize);
 		
 	
@@ -96,8 +94,7 @@ protected:
 	
 	/** The last app time we stepped with analog input */
 	double LastAnalogStepTime = 0.0;
-	double InputStartTime = 0.0;
-	
+
 	uint32 bUsingGamepad : 1;
 	uint32 bWasInputting : 1;
 	

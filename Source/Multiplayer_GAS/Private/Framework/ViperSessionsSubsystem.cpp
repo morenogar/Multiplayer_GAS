@@ -15,10 +15,29 @@ UViperSessionsSubsystem::UViperSessionsSubsystem():
 	DestroySessionCompleteDelegate(FOnDestroySessionCompleteDelegate::CreateUObject(this, &UViperSessionsSubsystem::OnDestroySessionComplete)),
 	StartSessionCompleteDelegate(FOnStartSessionCompleteDelegate::CreateUObject(this, &UViperSessionsSubsystem::OnStartSessionComplete))
 {
+}
+
+void UViperSessionsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
 	if (IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get())
 	{
 		SessionInterface = Subsystem->GetSessionInterface();
 	}
+}
+
+void UViperSessionsSubsystem::Deinitialize()
+{
+	if (SessionInterface.IsValid())
+	{
+		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
+		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
+		SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegateHandle);
+		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
+		SessionInterface->ClearOnStartSessionCompleteDelegate_Handle(StartSessionCompleteDelegateHandle);
+		SessionInterface.Reset();
+	}
+	Super::Deinitialize();
 }
 
 void UViperSessionsSubsystem::CreateSession(int32 NumOfPublicConnections, FString MatchType)
@@ -51,10 +70,6 @@ void UViperSessionsSubsystem::CreateSession(int32 NumOfPublicConnections, FStrin
 	{
 		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
 		ViperOnCreateSessionCompleteDelegate.Broadcast(false,"");
-	}
-	else
-	{
-		LastNamedSession = MakeShareable(SessionInterface->GetNamedSession(NAME_GameSession));
 	}
 }
 
@@ -131,10 +146,11 @@ void UViperSessionsSubsystem::OnCreateSessionComplete(FName SessionName, bool bW
 	if (SessionInterface)
 		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
 
-	if (LastNamedSession)
-		ViperOnCreateSessionCompleteDelegate.Broadcast(bWasSuccessful,LastNamedSession->GetSessionIdStr());
-	else
-		ViperOnCreateSessionCompleteDelegate.Broadcast(bWasSuccessful, "");
+	const FNamedOnlineSession* NamedSession =
+		SessionInterface.IsValid() ? SessionInterface->GetNamedSession(SessionName) : nullptr;
+
+	ViperOnCreateSessionCompleteDelegate.Broadcast(
+		bWasSuccessful, NamedSession ? NamedSession->GetSessionIdStr() : TEXT(""));
 }
 
 void UViperSessionsSubsystem::OnFindSessionComplete(bool bWasSuccessful)
