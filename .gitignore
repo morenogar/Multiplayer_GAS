@@ -99,3 +99,7 @@ Content/Maps/Claude_Map.umap
 Content/Maps/Claude_Map_HLOD0_Instancing.uasset
 Content/__ExternalActors__/Maps/Claude_Map/
 Content/__ExternalObjects__/Maps/Claude_Map/
+# Copias de seguridad y cache de Python
+*.bak
+__pycache__/
+*.pyc

@@ -1,0 +1,1604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Viper Follow Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a field instrument. Map plate on the left, parameter rack on the right,
+   instrument strip underneath. Stacks to one column at phone width. */
+:root {
+  --bg: #f6f4f0;
+  --surface: #ffffff;
+  --surface-2: #efece6;
+  --ink: #17140f;
+  --muted: #6d665b;
+  --line: #ded9d0;
+  --grid: #e7e3db;
+  --leader: #c2410c;
+  --companion: #0d7268;
+  --good: #15803d;
+  --warn: #a16207;
+  --bad: #b2201c;
+  --font-ui: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131210;
+    --surface: #1c1b18;
+    --surface-2: #232220;
+    --ink: #f1eee7;
+    --muted: #9b948a;
+    --line: #302e2a;
+    --grid: #26241f;
+    --leader: #fb923c;
+    --companion: #34d3c0;
+    --good: #4ade80;
+    --warn: #facc15;
+    --bad: #f87171;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131210;
+  --surface: #1c1b18;
+  --surface-2: #232220;
+  --ink: #f1eee7;
+  --muted: #9b948a;
+  --line: #302e2a;
+  --grid: #26241f;
+  --leader: #fb923c;
+  --companion: #34d3c0;
+  --good: #4ade80;
+  --warn: #facc15;
+  --bad: #f87171;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+
+header.head { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: baseline; margin-bottom: 4px; }
+h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); max-width: 62ch; margin: 2px 0 18px; }
+.eyebrow {
+  font-family: var(--font-data); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--muted);
+}
+
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 332px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; min-width: 0;
+}
+.card.flush { padding: 0; overflow: hidden; }
+
+/* ---------------------------------------------------------------- map plate */
+.plate { position: relative; }
+canvas { display: block; width: 100%; height: auto; max-width: 100%; }
+.plate-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+}
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-left: auto; }
+.key { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.swatch.ghost { border-radius: 2px; opacity: 0.45; }
+
+button, select, .seg > label {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer;
+}
+button:hover, .seg > label:hover { background: var(--surface-2); }
+button:focus-visible, select:focus-visible, input:focus-visible, .seg input:focus-visible + label {
+  outline: 2px solid var(--leader); outline-offset: 1px;
+}
+button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 500; }
+button.primary:hover { opacity: 0.88; background: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg input { position: absolute; opacity: 0; width: 0; height: 0; }
+.seg > label { border: 0; border-radius: 0; border-left: 1px solid var(--line); }
+.seg > label:first-of-type { border-left: 0; }
+.seg input:checked + label { background: var(--ink); color: var(--bg); }
+
+/* ------------------------------------------------------------ instrument strip */
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(126px, 1fr)); gap: 1px; background: var(--line); border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+.cell { background: var(--surface); padding: 10px 12px; }
+.cell .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-family: var(--font-data); }
+.cell .v { font-family: var(--font-data); font-size: 19px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.cell .r { font-size: 11px; color: var(--muted); font-family: var(--font-data); }
+.cell .v .u { font-size: 12px; color: var(--muted); }
+.stripe { display: block; height: 3px; border-radius: 2px; margin-top: 7px; background: var(--line); }
+.stripe.ok { background: var(--good); } .stripe.warn { background: var(--warn); } .stripe.bad { background: var(--bad); }
+
+/* ------------------------------------------------------------- parameter rack */
+.rack { display: flex; flex-direction: column; gap: 10px; }
+.grp { border: 1px solid var(--line); border-radius: 9px; background: var(--surface); overflow: hidden; }
+.grp > summary {
+  cursor: pointer; padding: 9px 12px; background: var(--surface-2);
+  font-family: var(--font-data); font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+}
+.grp > summary::-webkit-details-marker { display: none; }
+.grp > summary::after { content: "+"; color: var(--muted); font-size: 14px; }
+.grp[open] > summary::after { content: "\2013"; }
+.grp .body { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 11px; }
+
+.p { display: block; }
+.p .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.p .name { font-size: 12.5px; }
+.p .num { font-family: var(--font-data); font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.p .num.off { color: var(--leader); }
+.p input[type=range] { width: 100%; margin: 3px 0 0; accent-color: var(--companion); }
+.p .help { font-size: 11.5px; color: var(--muted); margin-top: 2px; display: none; }
+.showhelp .p .help { display: block; }
+.p.bool { display: flex; align-items: flex-start; gap: 8px; }
+.p.bool input { margin: 3px 0 0; accent-color: var(--companion); flex: none; }
+
+/* ------------------------------------------------------------------- export */
+pre.out {
+  font-family: var(--font-data); font-size: 11.5px; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 0;
+  max-height: 210px; overflow: auto; white-space: pre; line-height: 1.55;
+}
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+input[type=text] {
+  font: inherit; font-size: 13px; font-family: var(--font-data); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px;
+  min-width: 0; flex: 1 1 180px;
+}
+.status { font-family: var(--font-data); font-size: 12px; color: var(--muted); }
+.status.ok { color: var(--good); } .status.bad { color: var(--bad); }
+h2 { font-size: 15px; font-weight: 600; margin: 26px 0 8px; }
+h3 { font-size: 13px; font-weight: 600; margin: 16px 0 4px; }
+p.note { color: var(--muted); max-width: 72ch; margin: 6px 0; }
+p.note code, li code { font-family: var(--font-data); font-size: 12px; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+ol.steps, ul.plain { max-width: 72ch; color: var(--muted); padding-left: 20px; }
+ol.steps li, ul.plain li { margin: 5px 0; }
+ol.steps b, ul.plain b { color: var(--ink); font-weight: 600; }
+.pill { font-family: var(--font-data); font-size: 11px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.scroller { overflow-x: auto; }
+table.cmp { border-collapse: collapse; font-size: 12.5px; min-width: 420px; }
+table.cmp th, table.cmp td { text-align: left; padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line); }
+table.cmp th { font-family: var(--font-data); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 500; }
+table.cmp td.n { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <h1>Viper Follow Lab</h1>
+    <span class="eyebrow" id="modepill">simulated route</span>
+  </header>
+  <p class="sub">One detective walks the trail point to point; the other follows. Every number below is a
+    property of the <code>Viper Follow Leader</code> task, so a setting that reads well here can be typed
+    straight into the game.</p>
+
+  <div class="cols">
+    <div>
+      <div class="card flush plate">
+        <div class="plate-bar">
+          <button id="play" class="primary">Pause</button>
+          <button id="reset">Restart</button>
+          <span class="seg" role="group" aria-label="Who drives the leader">
+            <input type="radio" name="drive" id="d-route" value="route" checked><label for="d-route">Route</label>
+            <input type="radio" name="drive" id="d-mouse" value="mouse"><label for="d-mouse">Mouse</label>
+            <input type="radio" name="drive" id="d-stand" value="stand"><label for="d-stand">Stand &amp; turn</label>
+          </span>
+          <label class="p bool" style="gap:6px;margin:0" for="lookat">
+            <input type="checkbox" id="lookat">
+            <span class="name">Look at Marci</span>
+          </label>
+          <select id="speed" aria-label="Simulation speed">
+            <option value="0.5">0.5&times;</option>
+            <option value="1" selected>1&times;</option>
+            <option value="2">2&times;</option>
+          </select>
+          <div class="legend">
+            <span class="key"><span class="swatch" style="background:var(--leader)"></span>leader</span>
+            <span class="key"><span class="swatch" style="background:var(--companion)"></span>companion</span>
+            <span class="key" id="ghostkey" hidden><span class="swatch ghost" style="background:var(--ink)"></span>recorded</span>
+          </div>
+        </div>
+        <canvas id="map" width="1600" height="1000" aria-label="Top-down view of the two detectives"></canvas>
+      </div>
+
+      <div style="height:10px"></div>
+      <div class="readout" id="readout"></div>
+
+      <div style="height:10px"></div>
+      <div class="card flush">
+        <div class="plate-bar">
+          <span class="eyebrow">last 14 seconds</span>
+          <div class="legend">
+            <span class="key"><span class="swatch" style="background:var(--leader)"></span>leader speed</span>
+            <span class="key"><span class="swatch" style="background:var(--companion)"></span>companion speed</span>
+            <span class="key"><span class="swatch" style="background:var(--muted)"></span>gap</span>
+            <span class="key"><span class="swatch" style="background:var(--warn)"></span>intent</span>
+          </div>
+        </div>
+        <canvas id="strip" width="1600" height="420" aria-label="Speed, gap and intent over time"></canvas>
+      </div>
+    </div>
+
+    <div class="rack">
+      <div class="card">
+        <div class="row" style="margin-bottom:8px">
+          <select id="preset" aria-label="Preset">
+            <option value="shipped">Preset: in the game now</option>
+            <option value="before">Preset: before the fixes</option>
+            <option value="calm">Preset: calm hiker</option>
+            <option value="attentive">Preset: attentive partner</option>
+            <option value="loose">Preset: loose leash</option>
+          </select>
+        </div>
+        <div class="row">
+          <button id="pin">Pin as reference</button>
+          <button id="helptoggle">Explain</button>
+        </div>
+        <p class="status" id="pinned" style="margin-top:8px">No reference pinned.</p>
+      </div>
+      <div id="rack"></div>
+    </div>
+  </div>
+
+  <h2>What the numbers are telling you</h2>
+  <p class="note">The four tells below are the ones that make a companion read as a machine. They are
+    measurable, which is the only reason they got fixed: each was found by reading a number, not by
+    watching. Pick <b>before the fixes</b> in the preset list and watch them all go red.</p>
+  <div class="scroller">
+    <table class="cmp">
+      <thead><tr><th>Tell</th><th>What you see</th><th>Aim for</th><th>Set by</th></tr></thead>
+      <tbody>
+        <tr><td><b>Orbit</b></td><td>It walks a circle around you while you stand and turn</td><td class="n">under 15&deg;</td><td><code>bHoldBearingWhileLeaderStands</code></td></tr>
+        <tr><td><b>Snatching</b></td><td>The heading flips and it sets off sideways</td><td class="n">under 20&deg;/s</td><td><code>SteerSmoothTime</code>, <code>SideSwapTime</code></td></tr>
+        <tr><td><b>Hunting</b></td><td>The pace keeps surging and easing on a straight walk</td><td class="n">under 1 /10s</td><td><code>PaceMatchTolerance</code>, <code>SpeedChangeRate</code></td></tr>
+        <tr><td><b>Stopping dead</b></td><td>It halts the instant you look at it</td><td class="n">0.8 - 1.5 m</td><td><code>IntentFallTime</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Putting a setting into the game</h2>
+  <p class="note">Three ways in, cheapest first. All three write the same property names you tuned above.</p>
+
+  <h3>1 &middot; Console commands <span class="pill">works everywhere</span></h3>
+  <p class="note">Paste into the game console (<code>~</code>) while it runs, or into the editor console.
+    Takes effect on the next tick, no restart.</p>
+  <div class="card">
+    <pre class="out" id="cmds"></pre>
+    <div class="row" style="margin-top:8px">
+      <button id="copycmds">Copy commands</button>
+      <button id="copyjson">Copy as JSON</button>
+      <span class="status" id="copystatus"></span>
+    </div>
+  </div>
+
+  <h3>2 &middot; Push live from this page <span class="pill">editor or build</span></h3>
+  <p class="note">Unreal ships a web server for exactly this. The <b>Remote Control API</b> plugin, now
+    enabled in the project, answers on port 30010 and replies with
+    <code>Access-Control-Allow-Origin: *</code>, so a browser may call it. Each value goes as one
+    <code>PUT /remote/object/call</code> of <code>SetOverride</code> on
+    <code>Default__ViperCompanionTuning</code>, which resolves the parameter name by reflection against
+    the follow task. On by default in the editor; a packaged build needs the plugin packaged and
+    <code>-RCWebControlEnable</code> on the command line.</p>
+  <div class="card">
+    <div class="row">
+      <input type="text" id="host" value="http://localhost:30010" aria-label="Remote Control host">
+      <button id="push">Push every value</button>
+      <span class="status" id="pushstatus">Not tried yet.</span>
+    </div>
+    <p class="note" style="margin-top:10px">One caveat, and it is the browser's, not Unreal's: a page served
+      over <code>https</code> may refuse to call <code>http://localhost</code>. If the push fails while the
+      game is plainly running, open this page from a local file instead &mdash; the same file is saved in the
+      project under <code>Tools/</code> &mdash; and it will go through.</p>
+  </div>
+
+  <h3>3 &middot; Project Settings <span class="pill">editor</span></h3>
+  <p class="note">The same values live under <b>Project Settings &rarr; Viper &rarr; Companion Tuning</b>,
+    where they can be edited with the game running in the editor and saved into
+    <code>Config/DefaultGame.ini</code> so they survive a restart.</p>
+
+  <h2>Replaying a real run</h2>
+  <p class="note">Drop in a log from a scripted session (the ones with <code>Viper.Companion.Csv 1</code>
+    switched on) and the leader stops being a simulation: it walks exactly where it walked in the engine,
+    the companion from that run is drawn behind as a ghost, and the companion in front is what these
+    settings would have done instead. That is the honest comparison.</p>
+  <div class="card">
+    <div class="row">
+      <input type="file" id="tracefile" accept=".log,.txt,.csv" aria-label="Session log">
+      <button id="cleartrace" hidden>Back to the simulated route</button>
+      <span class="status" id="tracestatus">No log loaded.</span>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ===========================================================================
+   Parameters.  Names, defaults and ranges are the ones on the Viper Follow
+   Leader task, so what is tuned here can be typed into the game unchanged.
+   =========================================================================== */
+const GROUPS = [
+  { name: "Formation", open: true, items: [
+    { k:"FormationDistance", t:"Formation distance", min:80, max:500, step:5, v:280, u:"cm",
+      h:"How far behind the leader the slot sits." },
+    { k:"FormationAngle", t:"Formation angle", min:0, max:90, step:1, v:35, u:"°",
+      h:"Degrees off the leader's back, so it walks beside you instead of in your footprints." },
+    { k:"SideSwapInterval", t:"Side swap every", min:0, max:30, step:0.5, v:9, u:"s",
+      h:"0 keeps it on one shoulder forever." },
+    { k:"SideSwapTime", t:"Swap takes", min:0, max:6, step:0.1, v:2, u:"s",
+      h:"0 teleports the slot four metres across your back and it sets off sideways to chase it." },
+    { k:"PersonalSpaceRadius", t:"Personal space", min:0, max:400, step:5, v:200, u:"cm",
+      h:"Inside this gap it spends part of its steering getting back out of your way." },
+    { k:"LeadTime", t:"Lead time", min:0, max:1.5, step:0.05, v:0.35, u:"s",
+      h:"Seconds of your velocity added to the slot, so it cuts the corner instead of tracing your path." },
+    { k:"bHoldBearingWhileLeaderStands", t:"Hold bearing while you stand still", b:true, v:true,
+      h:"Off, the slot keeps hanging off your facing, so turning on the spot drags it round you in a circle and it walks that circle." },
+  ]},
+  { name: "Start and stop", open: true, items: [
+    { k:"StartFollowDistance", t:"Start walking at", min:100, max:900, step:10, v:320, u:"cm",
+      h:"Distance from the slot that gets it moving." },
+    { k:"StopFollowDistance", t:"Stop walking at", min:40, max:500, step:10, v:170, u:"cm",
+      h:"The gap between this and the start distance is what kills the stutter." },
+    { k:"StopDistanceJitter", t:"Stop slack", min:0, max:200, step:5, v:70, u:"cm",
+      h:"Random slack on each stop, so it never parks in the same spot twice." },
+    { k:"KeepWalkingLeaderSpeed", t:"Never stop above", min:0, max:200, step:5, v:20, u:"cm/s",
+      h:"Your speed above which it keeps walking whatever the distance says. Stopping is a reply to you stopping." },
+    { k:"SettleStartDistance", t:"Settle up from", min:0, max:600, step:10, v:240, u:"cm",
+      h:"While you stand still these two replace the pair above, because the judgement is different: no slot is running away, only a gap left over from the walk. 0 uses the walking band throughout, and then it parks wherever the walk happened to end it." },
+    { k:"SettleStopDistance", t:"Settled within", min:0, max:400, step:10, v:120, u:"cm",
+      h:"Has to be wider than the glide, or it sails through the spot and comes back round for another go, which is the circling you were trying to get rid of." },
+  ]},
+  { name: "Investigating", open: true, items: [
+    { k:"RoamRadius", t:"Roaming area", min:0, max:2000, step:50, v:750, u:"cm",
+      h:"The second, wider circle, centred where you stopped. While you are not looking at her and you stay inside it, she is free to move about in it as she likes. 0 switches roaming off." },
+    { k:"RoamIdleTime", t:"Starts investigating after", min:0, max:15, step:0.5, v:3, u:"s",
+      h:"How long you have to stay put before she stops waiting on you and starts looking at things." },
+    { k:"RoamSpeed", t:"Investigating pace", min:60, max:400, step:10, v:170, u:"cm/s",
+      h:"A stroll. She is curious, not in a hurry." },
+    { k:"RoamDwellTime", t:"Looks at what she found for", min:0, max:8, step:0.5, v:2.5, u:"s",
+      h:"Walking somewhere and turning straight back is an errand; stopping to look is curiosity." },
+    { k:"RoamMinStep", t:"Each move at least", min:50, max:800, step:25, v:250, u:"cm",
+      h:"Rejects points right under her feet, or she shuffles on the spot." },
+  ]},
+  { name: "Pathing", open: false, items: [
+    { k:"MinSteerReach", t:"Steer while it can reach", min:0, max:600, step:10, v:150, u:"cm",
+      h:"How far down the straight line it must be able to walk before steering rather than asking for a path. Low values keep it steering and smooth; high values hand it to path following, which re-aims and re-brakes on every repath." },
+  ]},
+  { name: "Pace", open: true, items: [
+    { k:"WalkSpeed", t:"Walk speed", min:60, max:400, step:10, v:200, u:"cm/s" },
+    { k:"RunSpeed", t:"Run speed", min:200, max:900, step:10, v:680, u:"cm/s" },
+    { k:"SpeedMatchDistance", t:"Full run at", min:200, max:1600, step:20, v:750, u:"cm",
+      h:"Distance at which it commits to the run speed." },
+    { k:"LeaderSpeedInfluence", t:"Your pace pulls it", min:0, max:1, step:0.05, v:0.6, u:"",
+      h:"0 solves for distance alone." },
+    { k:"PaceMatchTolerance", t:"Just match pace within", min:0, max:600, step:10, v:260, u:"cm",
+      h:"Once it is roughly in place and you are walking, the honest answer to how fast is as fast as you. 0 turns it back into a servo chasing a setpoint." },
+    { k:"SpeedChangeRate", t:"Pace may change by", min:0, max:2000, step:25, v:450, u:"cm/s²",
+      h:"Legs do not change pace in one frame. 0 removes the limit." },
+  ]},
+  { name: "Easing", open: true, items: [
+    { k:"IntentRiseTime", t:"Leans into a move over", min:0, max:2, step:0.05, v:0.45, u:"s" },
+    { k:"IntentFallTime", t:"Eases off over", min:0, max:4, step:0.05, v:1.2, u:"s",
+      h:"The window where it is already giving you its attention but still walking. Nobody stops dead when someone looks at them." },
+    { k:"SettleFallTime", t:"Eases off over, when settling", min:0, max:2, step:0.05, v:0.4, u:"s",
+      h:"The long easing above is for the moment you look at it while it is still walking, and it costs about a metre twenty of glide. Spend that walking up to someone already standing still and it sails past the spot and parks a metre and a half away. 0 uses the long one for both." },
+    { k:"HeadingSmoothTime", t:"Smooths your heading over", min:0, max:2, step:0.05, v:0.5, u:"s",
+      h:"The slot swings with your heading, so a raw one makes the goal shiver." },
+    { k:"SteerSmoothTime", t:"Smooths its own heading over", min:0, max:1.5, step:0.05, v:0.25, u:"s",
+      h:"Last filter before the body. Catches the side swap, the personal-space push and the slot crossing behind you, all at once." },
+    { k:"HeadingFollowWeight", t:"Walks your way, not at the slot", min:0, max:1, step:0.05, v:0.75, u:"",
+      h:"Near the slot and both walking, how much of its heading comes from your direction of travel rather than from the slot. Aiming a body at a point beside your shoulder makes the aim swing hard as that point drifts; a fifth of a measured walk went above 200 degrees a second because of it." },
+    { k:"ConversationDistance", t:"Settles to talk at", min:100, max:500, step:10, v:230, u:"cm",
+      h:"Where it comes to rest when you look at it, measured along the bearing it already stands on, which is why it does not walk round you to get there." },
+  ]},
+  { name: "Attention", open: true, items: [
+    { k:"EyeContactHoldTime", t:"Notices you after", min:0, max:4, step:0.1, v:0.8, u:"s",
+      h:"How long you have to hold your aim on her before she treats it as being looked at. Instant is what makes a companion feel like a tripwire; a beat of delay is someone realising you are waiting for them." },
+    { k:"EyeContactBreakGrace", t:"Forgives a glance away for", min:0, max:3, step:0.1, v:0.5, u:"s",
+      h:"A moment off her does not reset the clock, so the aim wobbling across her edge does not flick her in and out of attention." },
+    { k:"SummonStareTime", t:"Comes over if stared at for", min:0.5, max:10, step:0.5, v:3, u:"s",
+      h:"Keep looking at her from a distance and she walks over. 0 off." },
+    { k:"SummonDistance", t:"...and she is further than", min:0, max:1500, step:50, v:500, u:"cm",
+      h:"Closer than this a long look just means she stops and gives you her attention where she is." },
+    { k:"bFaceLeaderWhenStopped", t:"Turn to face you when stopped", b:true, v:true,
+      h:"Standing with its back to you is what makes it look switched off between orders." },
+    { k:"FaceLeaderTurnRate", t:"Turning at", min:30, max:540, step:10, v:160, u:"°/s" },
+    { k:"FaceLeaderDistance", t:"Only within", min:0, max:2000, step:50, v:700, u:"cm" },
+    { k:"EyeContactBodyRadius", t:"Aim target half-width", min:10, max:200, step:5, v:55, u:"cm",
+      h:"How wide a target your crosshair has to land on. Scaled by the tolerance below and then measured as an angle, so pointing at it means the same thing at two metres and at ten." },
+    { k:"EyeContactTolerance", t:"Aim tolerance", min:0.5, max:6, step:0.1, v:2, u:"×" },
+  ]},
+  { name: "Body", open: false, items: [
+    { k:"MaxAcceleration", t:"Acceleration", min:200, max:3000, step:50, v:900, u:"cm/s²",
+      h:"On the movement component, not the task." },
+    { k:"BrakingDecelerationWalking", t:"Braking", min:100, max:3000, step:50, v:800, u:"cm/s²" },
+    { k:"RotationRate", t:"Turn rate", min:90, max:900, step:10, v:540, u:"°/s" },
+  ]},
+];
+
+const PRESETS = {
+  shipped: {},
+  before: {
+    SideSwapTime: 0, SteerSmoothTime: 0, bHoldBearingWhileLeaderStands: false,
+    PaceMatchTolerance: 0, SpeedChangeRate: 0, bFaceLeaderWhenStopped: false,
+    IntentFallTime: 0.35, PersonalSpaceRadius: 0, SettleStartDistance: 0, MinSteerReach: 600,
+    HeadingFollowWeight: 0, SettleFallTime: 0,
+  },
+  calm: {
+    FormationDistance: 260, FormationAngle: 42, PersonalSpaceRadius: 190,
+    WalkSpeed: 180, RunSpeed: 430, SpeedChangeRate: 320, PaceMatchTolerance: 340,
+    IntentRiseTime: 0.7, IntentFallTime: 1.8, HeadingSmoothTime: 0.75, SteerSmoothTime: 0.4,
+    SideSwapInterval: 16, SideSwapTime: 3, FaceLeaderTurnRate: 120,
+  },
+  attentive: {
+    FormationDistance: 180, FormationAngle: 48, ConversationDistance: 200,
+    StartFollowDistance: 260, StopFollowDistance: 140, PaceMatchTolerance: 300,
+    IntentFallTime: 1.4, SteerSmoothTime: 0.2, FaceLeaderDistance: 1200, FaceLeaderTurnRate: 220,
+    SideSwapInterval: 7,
+  },
+  loose: {
+    FormationDistance: 340, StartFollowDistance: 520, StopFollowDistance: 300,
+    StopDistanceJitter: 140, PaceMatchTolerance: 420, SpeedMatchDistance: 1000,
+    IntentRiseTime: 0.6, IntentFallTime: 1.6, SideSwapInterval: 14,
+  },
+};
+
+const P = {};          // live values
+const DEFAULTS = {};
+const META = {};
+for (const g of GROUPS) for (const it of g.items) {
+  P[it.k] = it.v; DEFAULTS[it.k] = it.v; META[it.k] = it;
+}
+
+/* These three belong to the character movement component rather than to the follow task.
+   The tuning object tries the task first and the movement component second, so they are
+   reachable by the same name either way. */
+const BODY_KEYS = new Set(["MaxAcceleration", "BrakingDecelerationWalking", "RotationRate"]);
+
+/* ===========================================================================
+   Small vector and interpolation helpers.  The interpolators are the Unreal
+   ones, because the shape of the motion is exactly what they decide.
+   =========================================================================== */
+const V = (x, y) => ({ x, y });
+const add = (a, b) => V(a.x + b.x, a.y + b.y);
+const sub = (a, b) => V(a.x - b.x, a.y - b.y);
+const mul = (a, s) => V(a.x * s, a.y * s);
+const len = a => Math.hypot(a.x, a.y);
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function norm(a) { const l = Math.hypot(a.x, a.y); return l > 1e-6 ? V(a.x / l, a.y / l) : V(0, 0); }
+function rot(a, deg) {
+  const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  return V(a.x * c - a.y * s, a.x * s + a.y * c);
+}
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/** FMath::FInterpConstantTo - moves at a fixed rate, never overshoots. */
+function interpConst(cur, tgt, dt, rate) {
+  if (rate <= 0) return tgt;
+  const step = rate * dt, d = tgt - cur;
+  if (Math.abs(d) <= step) return tgt;
+  return cur + Math.sign(d) * step;
+}
+/** FMath::VInterpTo - exponential ease, the one that gives the soft shoulder. */
+function vInterpTo(cur, tgt, dt, speed) {
+  if (speed <= 0) return tgt;
+  const d = sub(tgt, cur);
+  if (len(d) < 1e-6) return tgt;
+  return add(cur, mul(d, clamp(dt * speed, 0, 1)));
+}
+function angleDelta(a, b) { let d = (b - a) % 360; if (d > 180) d -= 360; if (d < -180) d += 360; return d; }
+function rInterpConst(cur, tgt, dt, rate) {
+  const d = angleDelta(cur, tgt), step = rate * dt;
+  if (Math.abs(d) <= step) return tgt;
+  return cur + Math.sign(d) * step;
+}
+const yawOf = v => Math.atan2(v.y, v.x) * 180 / Math.PI;
+
+/* ===========================================================================
+   The world.  A trail with a dog-leg and one rock to walk around, laid out in
+   Unreal units so the distances on the sliders mean what they say.
+   =========================================================================== */
+const WORLD = { x0: -200, y0: -200, x1: 3000, y1: 2100 };
+const ROUTE = [V(150, 1750), V(700, 1500), V(1150, 800), V(1900, 700), V(2500, 1150), V(2650, 1750), V(1500, 1900)];
+const ROCKS = [
+  { x: 1250, y: 980, w: 420, h: 300 },
+  { x: 2050, y: 250, w: 240, h: 260 },
+];
+
+function insideRock(p, pad) {
+  for (const r of ROCKS) {
+    if (p.x > r.x - pad && p.x < r.x + r.w + pad && p.y > r.y - pad && p.y < r.y + r.h + pad) return r;
+  }
+  return null;
+}
+/** The rock the straight walk actually runs into, or null. */
+function blockingRock(a, b) {
+  const steps = 24;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const r = insideRock(V(lerp(a.x, b.x, t), lerp(a.y, b.y, t)), 40);
+    if (r) return r;
+  }
+  return null;
+}
+/**
+ * How far down the straight line it can actually walk, standing in for the navmesh raycast.
+ * This is the one that matters most: answering only yes or no sends it off to ask for a path,
+ * and path following re-aims and re-brakes on every repath, which is where the surging came from.
+ */
+function furthestClear(from, to) {
+  const steps = 20;
+  let last = from;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const p = V(lerp(from.x, to.x, t), lerp(from.y, to.y, t));
+    if (insideRock(p, 40)) {
+      const back = norm(sub(last, from));
+      const reach = Math.max(0, dist(from, last) - 40);
+      return { clear: false, point: add(from, mul(back, reach)), dist: reach };
+    }
+    last = p;
+  }
+  return { clear: true, point: to, dist: dist(from, to) };
+}
+
+/**
+ * A spot inside the roaming area worth walking to: on the map, not inside a rock, and far enough
+ * from where she already is that going there is a move and not a shuffle.
+ */
+function pickRoamPoint() {
+  for (let i = 0; i < 24; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * P.RoamRadius;   // sqrt, or every point clusters at the rim
+    const p = V(leader.anchor.x + Math.cos(a) * r, leader.anchor.y + Math.sin(a) * r);
+    if (p.x < WORLD.x0 + 80 || p.x > WORLD.x1 - 80) continue;
+    if (p.y < WORLD.y0 + 80 || p.y > WORLD.y1 - 80) continue;
+    if (insideRock(p, 60)) continue;
+    if (dist(p, comp.p) < P.RoamMinStep) continue;
+    // Her own business does not include walking through you. Without this the area is centred on
+    // where you stand, so a fair share of the points it offers are the ground you are on.
+    if (P.PersonalSpaceRadius > 0 && dist(p, leader.p) < P.PersonalSpaceRadius) continue;
+    return p;
+  }
+  return null;
+}
+
+/** Stand-in for a path: aim at whichever corner of the blocking rock gets us past it. */
+function cornerAround(from, to) {
+  // Only the rock in the way, found by walking the segment. Picking any rock on the level
+  // instead sends it off to a corner nowhere near the route, which is a runaway, not a detour.
+  const r = blockingRock(from, to);
+  if (!r) return to;
+  const pad = 110;
+  const corners = [V(r.x - pad, r.y - pad), V(r.x + r.w + pad, r.y - pad),
+                   V(r.x - pad, r.y + r.h + pad), V(r.x + r.w + pad, r.y + r.h + pad)];
+  let best = to, bestCost = Infinity;
+  for (const c of corners) {
+    if (blockingRock(from, c)) continue;
+    const cost = dist(from, c) + dist(c, to);
+    if (cost < bestCost) { bestCost = cost; best = c; }
+  }
+  return best;
+}
+
+/* ===========================================================================
+   State
+   =========================================================================== */
+const leader = {
+  p: V(ROUTE[0].x, ROUTE[0].y), v: V(0, 0), yaw: 0, wp: 1, pause: 0, standYaw: 0,
+  // Where the leader is LOOKING, which is not where the leader is going. Conflating the two is
+  // what made it impossible to test not looking at her: standing still counted as staring.
+  lookYaw: 0,
+  idleTime: 0,
+  anchor: V(ROUTE[0].x, ROUTE[0].y),
+};
+const comp = {
+  p: V(ROUTE[0].x - 220, ROUTE[0].y + 90), v: V(0, 0), yaw: 0,
+  moving: false, intent: 0, commanded: 0, stop: 170,
+  smoothFwd: V(1, 0), smoothSteer: V(0, 0), side: 1, targetSide: 1, sinceSwap: 0,
+  pathing: false,
+  // follow | rest | roam | approach.  In the game these four are StateTree states and the
+  // decision below is the tree's; here it is in one place so the whole thing can be watched.
+  mode: "follow",
+  lookedAt: 0,      // seconds of held eye contact
+  lostLook: 0,      // seconds since it was last satisfied, for the grace period
+  summoning: false, // latched: she has decided to come over and will finish doing it
+  roaming: false,   // latched: she is about her own business, and your steps inside the area
+                    // do not interrupt it - only leaving the area, or looking at her, does
+  roamTarget: null,
+  roamDwell: 0,
+};
+let lookAtCompanion = false;
+let running = true, simTime = 0, driveMode = "route", timeScale = 1;
+let mouseWorld = null;
+const trail = { leader: [], comp: [] };
+const series = [];           // { t, ls, cs, gap, intent }
+let pinnedMetrics = null, pinnedTrail = null, pinnedName = "";
+let trace = null;            // { rows, t0, t1 }
+
+const metrics = {
+  gap: 0, gapMin: Infinity, gapMax: 0,
+  crowdTime: 0, totalTime: 0,
+  headingRate: 0, headingPeak: 0,
+  paceFlips: 0, paceWindow: [],
+  orbitDeg: 0,
+  glide: 0, glideRun: null,
+  lastSteerYaw: null, lastPaceSign: 0, lastBearing: null,
+};
+
+function resetSim(keepTrace) {
+  const start = trace ? V(trace.rows[0].lx, trace.rows[0].ly) : ROUTE[0];
+  leader.p = V(start.x, start.y); leader.v = V(0, 0); leader.yaw = 0;
+  leader.wp = 1; leader.pause = 0; leader.standYaw = 0;
+  comp.p = V(start.x - 220, start.y + 90); comp.v = V(0, 0); comp.yaw = 0;
+  comp.moving = false; comp.intent = 0; comp.commanded = 0; comp.stop = P.StopFollowDistance;
+  comp.smoothFwd = V(1, 0); comp.smoothSteer = V(0, 0);
+  comp.side = 1; comp.targetSide = 1; comp.sinceSwap = 0; comp.pathing = false;
+  leader.lookYaw = 0; leader.idleTime = 0; leader.anchor = V(start.x, start.y);
+  comp.mode = "follow"; comp.lookedAt = 0; comp.lostLook = 0;
+  comp.summoning = false; comp.roaming = false;
+  comp.roamTarget = null; comp.roamDwell = 0;
+  simTime = 0; trail.leader.length = 0; trail.comp.length = 0; series.length = 0;
+  Object.assign(metrics, {
+    gap: 0, gapMin: Infinity, gapMax: 0, crowdTime: 0, totalTime: 0,
+    headingRate: 0, headingPeak: 0, paceFlips: 0, paceWindow: [], orbitDeg: 0,
+    glide: 0, glideRun: null, lastSteerYaw: null, lastPaceSign: 0, lastBearing: null,
+  });
+  if (!keepTrace) { /* trace kept by default */ }
+}
+
+/* ===========================================================================
+   Leader
+   =========================================================================== */
+/**
+ * Where the leader is looking, and how long they have stood still.  Both are about the leader and
+ * neither is about walking, which is why they live apart from the movement below: the companion
+ * reads these, and conflating "standing still" with "looking at her" left no way to stand still
+ * without staring.  The anchor is where they stopped, and the roaming area is centred on it.
+ */
+function updateLeaderAttention(dt) {
+  const moving = len(leader.v) > P.KeepWalkingLeaderSpeed;
+
+  if (moving) {
+    leader.idleTime = 0;
+    // The anchor follows while you are on your way somewhere, but it is frozen the moment she has
+    // settled in to investigate. If it kept following you, the area would travel with you and
+    // "you left the area" could never happen: a single step would end her business every time.
+    if (!comp.roaming) leader.anchor = V(leader.p.x, leader.p.y);
+  } else {
+    leader.idleTime += dt;
+  }
+
+  const want = lookAtCompanion
+    ? yawOf(sub(comp.p, leader.p))              // deliberately looking at her
+    : (driveMode === "stand" ? leader.standYaw  // sweeping the horizon
+       : (moving ? leader.yaw                   // looking where they walk
+          : leader.lookYaw));                   // standing: keep the last heading
+  leader.lookYaw = rInterpConst(leader.lookYaw, want, dt, 220);
+}
+
+function stepLeader(dt) {
+  if (trace) {
+    const t = trace.t0 + (simTime % (trace.t1 - trace.t0));
+    const r = sampleTrace(t);
+    const prev = leader.p;
+    leader.p = V(r.lx, r.ly);
+    leader.v = dt > 0 ? mul(sub(leader.p, prev), 1 / dt) : V(0, 0);
+    leader.yaw = r.lyaw;
+    return;
+  }
+  if (driveMode === "stand") {
+    leader.v = V(0, 0);
+    leader.standYaw = (leader.standYaw + 42 * dt) % 360;   // turning on the spot
+    leader.yaw = leader.standYaw;
+    return;
+  }
+  let goal;
+  if (driveMode === "mouse" && mouseWorld) {
+    goal = mouseWorld;
+  } else {
+    if (leader.pause > 0) { leader.pause -= dt; goal = leader.p; }
+    else {
+      goal = ROUTE[leader.wp];
+      if (dist(leader.p, goal) < 90) {
+        leader.wp = (leader.wp + 1) % ROUTE.length;
+        leader.pause = 2.6;
+      }
+    }
+  }
+  const want = dist(leader.p, goal) > 40 ? norm(sub(goal, leader.p)) : V(0, 0);
+  const target = mul(want, 300);                 // the player's own walk speed
+  const accel = 1400;
+  const d = sub(target, leader.v), dl = len(d);
+  leader.v = dl <= accel * dt ? target : add(leader.v, mul(norm(d), accel * dt));
+  leader.p = add(leader.p, mul(leader.v, dt));
+  if (len(leader.v) > 5) leader.yaw = rInterpConst(leader.yaw, yawOf(leader.v), dt, 420);
+}
+
+/* ===========================================================================
+   Companion.  A line-for-line port of FViperFollowLeaderTask::Tick, in the
+   same order, so a value that reads well here means the same in the engine.
+   =========================================================================== */
+function stepCompanion(dt) {
+  const leaderSpeed = len(leader.v);
+
+  /* ------------------- is she being looked at, and for how long ---------------------- */
+  const gap = dist(comp.p, leader.p);
+  const toComp = yawOf(sub(comp.p, leader.p));
+  const aimError = Math.abs(angleDelta(leader.lookYaw, toComp));
+  const half = Math.max(1, P.EyeContactBodyRadius * P.EyeContactTolerance);
+  // How much of the view her body fills at this range, so pointing at her means the same thing
+  // up close and across a clearing. A fixed cone does not.
+  const aimThreshold = clamp(Math.atan2(half, Math.max(1, gap)) * 180 / Math.PI, 3.5, 25);
+  const aimedAtNow = gap < 1800 && aimError <= aimThreshold;
+
+  // A glance away does not reset the clock at once, or an aim wobbling across her edge flicks
+  // her in and out of attention several times a second.
+  if (aimedAtNow) {
+    comp.lostLook = 0;
+    comp.lookedAt += dt;
+  } else {
+    comp.lostLook += dt;
+    if (comp.lostLook > P.EyeContactBreakGrace) comp.lookedAt = 0;
+  }
+
+  const noticed = comp.lookedAt >= P.EyeContactHoldTime;
+
+  // Latched, not recomputed. The condition includes being far away, so the moment she sets off it
+  // stops being true and she stops again: one step for every three seconds of staring. Once she
+  // has decided to come over she comes over, until she arrives or you look away.
+  if (!comp.summoning) {
+    comp.summoning = noticed && P.SummonStareTime > 0
+                     && comp.lookedAt >= P.SummonStareTime && gap > P.SummonDistance;
+  } else if (!noticed || gap <= P.ConversationDistance * 1.25) {
+    comp.summoning = false;
+  }
+  const summoned = comp.summoning;
+
+  /* ----------------------------- what she is doing ----------------------------------- */
+  // In the game these four are StateTree states and this decision belongs to the tree. It sits
+  // here so the whole rule can be watched and tuned in one place before it goes in.
+  // Latched, like the summon. Getting her started takes you standing still; keeping her going only
+  // takes you staying inside the area. Otherwise a single step of yours ends her investigating, and
+  // "I moved a bit and she gave up" is the opposite of her having a life of her own.
+  const leaderInsideRoam = P.RoamRadius > 0 && dist(leader.p, leader.anchor) <= P.RoamRadius;
+  if (!comp.roaming) {
+    comp.roaming = !noticed && leader.idleTime >= P.RoamIdleTime && leaderInsideRoam;
+  } else if (noticed || !leaderInsideRoam) {
+    comp.roaming = false;
+  }
+
+  comp.mode = summoned ? "approach" : noticed ? "rest" : comp.roaming ? "roam" : "follow";
+
+  if (comp.mode !== "roam") {
+    comp.roamTarget = null;
+    comp.roamDwell = 0;
+  }
+
+  const comeToRest = comp.mode === "rest";
+
+  // Coming to rest is an easing-off, not a walk, so it never starts moving - which freezes a
+  // companion that is already on top of you at whatever distance it happened to be. Standing that
+  // close is crowding, not attention, so this is the one case where it may still take a step back.
+  const tooCloseToRest = comeToRest && P.PersonalSpaceRadius > 0 && gap < P.PersonalSpaceRadius;
+
+  /* ----------------------------- the slot ---------------------------------- */
+  comp.sinceSwap += dt;
+  if (P.SideSwapInterval > 0 && comp.sinceSwap >= P.SideSwapInterval) {
+    comp.sinceSwap = 0; comp.targetSide = -comp.targetSide;
+  }
+  comp.side = P.SideSwapTime <= 0 ? comp.targetSide
+            : interpConst(comp.side, comp.targetSide, dt, 2 / P.SideSwapTime);
+
+  let fwd = leaderSpeed > 1e-3 ? norm(leader.v) : rot(V(1, 0), leader.yaw);
+  if (len(comp.smoothFwd) < 1e-6) comp.smoothFwd = fwd;
+  else if (P.HeadingSmoothTime > 1e-4) comp.smoothFwd = norm(vInterpTo(comp.smoothFwd, fwd, dt, 1 / P.HeadingSmoothTime));
+  else comp.smoothFwd = fwd;
+  fwd = comp.smoothFwd;
+
+  const slotDir = rot(mul(fwd, -1), comp.side * P.FormationAngle);
+  let goal = add(add(leader.p, mul(slotDir, P.FormationDistance)), mul(leader.v, P.LeadTime));
+
+  let bearing = norm(sub(comp.p, leader.p));
+  if (len(bearing) < 1e-6) bearing = mul(fwd, -1);
+
+  if (comp.mode === "approach") {
+    // Summoned by a long look from across the clearing: come to talking distance, straight in.
+    goal = add(leader.p, mul(bearing, P.ConversationDistance));
+  } else if (comp.mode === "roam") {
+    // Her own business inside the second area: pick a spot, walk over, stand and look at it,
+    // pick another. The formation slot has nothing to do with it.
+    if (comp.roamDwell > 0) {
+      comp.roamDwell -= dt;
+      goal = V(comp.p.x, comp.p.y);
+    } else {
+      if (!comp.roamTarget) comp.roamTarget = pickRoamPoint();
+      if (!comp.roamTarget) {
+        goal = V(comp.p.x, comp.p.y);
+      } else if (dist(comp.p, comp.roamTarget) < 70) {
+        comp.roamDwell = P.RoamDwellTime;
+        comp.roamTarget = null;
+        goal = V(comp.p.x, comp.p.y);
+      } else {
+        goal = comp.roamTarget;
+      }
+    }
+  } else if (comeToRest) {
+    goal = add(leader.p, mul(bearing, P.ConversationDistance));
+  } else if (P.bHoldBearingWhileLeaderStands && leaderSpeed <= P.KeepWalkingLeaderSpeed) {
+    goal = add(leader.p, mul(bearing, P.FormationDistance));
+  }
+
+  const goalDist = dist(comp.p, goal);
+
+  /* --------------------------- start / stop band --------------------------- */
+  // Settling up to a leader who has stopped is a different judgement from keeping pace with
+  // one who has not, so it gets its own, narrower band.
+  const settling = leaderSpeed <= P.KeepWalkingLeaderSpeed && P.SettleStartDistance > 0
+                   && (!comeToRest || tooCloseToRest);
+  // Two different easing-off times: letting a walk run on while it looks at you is the long one,
+  // stopping once it has walked up to you is short. The long one glides straight past the spot.
+  const fallTime = (settling && P.SettleFallTime > 0) ? P.SettleFallTime : P.IntentFallTime;
+  let startBand = settling ? P.SettleStartDistance : P.StartFollowDistance;
+  let stopBand = settling ? P.SettleStopDistance : P.StopFollowDistance;
+  let jitterBand = settling ? Math.min(P.StopDistanceJitter, stopBand * 0.5) : P.StopDistanceJitter;
+
+  // Roaming and being summoned both aim at one spot rather than at a slot that travels with you,
+  // so the wide band that keeps the follow from stuttering would just stop her setting off.
+  if (comp.mode === "roam") { startBand = 60; stopBand = 40; jitterBand = 0; }
+  else if (comp.mode === "approach") { startBand = 140; stopBand = 110; jitterBand = 30; }
+
+  if (!comp.moving && goalDist > startBand) {
+    comp.moving = true;
+    comp.stop = stopBand + Math.random() * jitterBand;
+  } else if (comp.moving && goalDist <= comp.stop) {
+    comp.moving = false;
+  }
+  if (!comeToRest && leaderSpeed > P.KeepWalkingLeaderSpeed) comp.moving = true;
+
+  /* ------------------------------- intent ---------------------------------- */
+  const targetIntent = (comp.moving && (!comeToRest || tooCloseToRest)) ? 1 : 0;
+  const ramp = targetIntent > comp.intent ? P.IntentRiseTime : fallTime;
+  const prevIntent = comp.intent;
+  comp.intent = ramp > 1e-4 ? interpConst(comp.intent, targetIntent, dt, 1 / ramp) : targetIntent;
+
+  // Stop glide: distance covered from the moment it starts easing off to standing still.
+  if (prevIntent >= 0.99 && comp.intent < 0.99 && targetIntent <= 0) metrics.glideRun = { from: V(comp.p.x, comp.p.y) };
+  if (metrics.glideRun && len(comp.v) < 12) { metrics.glide = dist(metrics.glideRun.from, comp.p); metrics.glideRun = null; }
+
+  let parked = false;
+  if (targetIntent <= 0 && comp.intent <= 0.02) {
+    comp.intent = 0; comp.commanded = 0; comp.smoothSteer = V(0, 0); parked = true;
+  }
+
+  /* ------------------------------- the pace -------------------------------- */
+  let maxSpeed = P.WalkSpeed;
+  if (!parked) {
+    const span = Math.max(1, P.SpeedMatchDistance - comp.stop);
+    const distAlpha = clamp((goalDist - comp.stop) / span, 0, 1);
+    const leaderAlpha = clamp(leaderSpeed / Math.max(1, P.RunSpeed), 0, 1) * P.LeaderSpeedInfluence;
+    let target = lerp(P.WalkSpeed, P.RunSpeed, Math.max(distAlpha, leaderAlpha));
+    if (leaderSpeed > P.KeepWalkingLeaderSpeed && goalDist <= P.PaceMatchTolerance) {
+      target = clamp(leaderSpeed, P.WalkSpeed * 0.5, P.RunSpeed);
+    }
+    // Investigating is a stroll whatever the distance says: she is curious, not late.
+    if (comp.mode === "roam") target = P.RoamSpeed;
+    // Coming over because you looked at her is a brisk walk, not a sprint. Left to the distance
+    // rule she crossed eleven metres at full running speed, which reads as being whistled for.
+    if (comp.mode === "approach") target = Math.min(target, P.WalkSpeed * 1.5);
+    const before = comp.commanded;
+    comp.commanded = (comp.commanded <= 0 || P.SpeedChangeRate <= 0)
+      ? target : interpConst(comp.commanded, target, dt, P.SpeedChangeRate);
+    maxSpeed = Math.max(1, comp.commanded);
+
+    // Hunting: how often the commanded pace changes its mind.
+    const sign = Math.sign(comp.commanded - before);
+    if (sign !== 0 && metrics.lastPaceSign !== 0 && sign !== metrics.lastPaceSign) {
+      metrics.paceWindow.push(simTime);
+    }
+    if (sign !== 0) metrics.lastPaceSign = sign;
+    while (metrics.paceWindow.length && metrics.paceWindow[0] < simTime - 10) metrics.paceWindow.shift();
+    metrics.paceFlips = metrics.paceWindow.length;
+  }
+
+  /* -------------------------------- steering -------------------------------- */
+  let input = V(0, 0);
+  if (!parked) {
+    const reach = furthestClear(comp.p, goal);
+    const canSteer = reach.clear || reach.dist >= P.MinSteerReach;
+    comp.pathing = !canSteer;
+    const aim = reach.clear ? goal : (canSteer ? reach.point : cornerAround(comp.p, goal));
+    let steer = norm(sub(aim, comp.p));
+
+    if (P.PersonalSpaceRadius > 0 && gap < P.PersonalSpaceRadius && len(steer) > 1e-6) {
+      const away = norm(sub(comp.p, leader.p));
+      const crowding = 1 - gap / P.PersonalSpaceRadius;
+      steer = norm(add(steer, mul(away, crowding * 2.5)));
+    }
+
+    // Near the slot and both walking: take most of the heading from where the leader is going
+    // rather than from where the slot happens to be, and let the sideways error wash out.
+    if (P.HeadingFollowWeight > 0 && leaderSpeed > P.KeepWalkingLeaderSpeed
+        && P.PaceMatchTolerance > 0 && goalDist < P.PaceMatchTolerance && len(fwd) > 1e-6) {
+      const nearness = 1 - clamp(goalDist / P.PaceMatchTolerance, 0, 1);
+      const w = nearness * P.HeadingFollowWeight;
+      const blended = V(lerp(steer.x, fwd.x, w), lerp(steer.y, fwd.y, w));
+      if (len(blended) > 1e-6) steer = norm(blended);
+    }
+
+    // Nowhere to go this frame - standing on the target, or the pull to the slot and the push out
+    // of personal space cancelling - means stand still. Keeping the last heading instead is a
+    // companion walking in a dead straight line until something interrupts it.
+    if (len(steer) < 1e-6) {
+      comp.smoothSteer = V(0, 0);
+      input = V(0, 0);
+    } else {
+      if (len(comp.smoothSteer) < 1e-6 || P.SteerSmoothTime <= 1e-4) {
+        comp.smoothSteer = steer;
+      } else {
+        const sm = norm(vInterpTo(comp.smoothSteer, steer, dt, 1 / P.SteerSmoothTime));
+        comp.smoothSteer = len(sm) < 1e-6 ? steer : sm;
+      }
+      steer = comp.smoothSteer;
+      input = mul(steer, comp.intent);
+    }
+
+    // Snatching: how fast the heading it is actually asking for swings about.
+    const sy = len(steer) > 1e-6 ? yawOf(steer) : metrics.lastSteerYaw;
+    if (sy !== null && metrics.lastSteerYaw !== null && dt > 0) {
+      metrics.headingRate = Math.abs(angleDelta(metrics.lastSteerYaw, sy)) / dt;
+      metrics.headingPeak = Math.max(metrics.headingPeak * 0.997, metrics.headingRate);
+    }
+    metrics.lastSteerYaw = sy;
+  } else {
+    metrics.lastSteerYaw = null;
+  }
+
+  /* ------------------- movement component (approximated) ------------------- */
+  const analog = clamp(len(input), 0, 1);
+  if (analog > 1e-3) {
+    const dir = norm(input);
+    const effMax = maxSpeed * analog;
+    const speed = len(comp.v);
+    // Ground friction turning the velocity toward the input, then acceleration.
+    const f = clamp(dt * 8 * 2, 0, 1);               // GroundFriction 8, BrakingFrictionFactor 2
+    comp.v = sub(comp.v, mul(sub(comp.v, mul(dir, speed)), f));
+    comp.v = add(comp.v, mul(dir, P.MaxAcceleration * analog * dt));
+    if (len(comp.v) > effMax) comp.v = mul(norm(comp.v), effMax);
+  } else {
+    const speed = len(comp.v);
+    if (speed > 0) {
+      const next = Math.max(0, speed - (P.BrakingDecelerationWalking + speed * 1) * dt);
+      comp.v = next <= 0 ? V(0, 0) : mul(norm(comp.v), next);
+    }
+  }
+  comp.p = add(comp.p, mul(comp.v, dt));
+
+  /* --------------------------------- facing -------------------------------- */
+  if (len(comp.v) > 15) {
+    comp.yaw = rInterpConst(comp.yaw, yawOf(comp.v), dt, P.RotationRate);
+  } else if (P.bFaceLeaderWhenStopped && (P.FaceLeaderDistance <= 0 || gap <= P.FaceLeaderDistance)) {
+    comp.yaw = rInterpConst(comp.yaw, yawOf(sub(leader.p, comp.p)), dt, P.FaceLeaderTurnRate);
+  }
+
+  /* -------------------------------- metrics -------------------------------- */
+  metrics.gap = gap;
+  metrics.totalTime += dt;
+  if (simTime > 1.5) {
+    metrics.gapMin = Math.min(metrics.gapMin, gap);
+    metrics.gapMax = Math.max(metrics.gapMax, gap);
+  }
+  if (P.PersonalSpaceRadius > 0 && gap < P.PersonalSpaceRadius) metrics.crowdTime += dt;
+
+  // Orbit: arc swept around a standing leader.  Radial closing is fine; going round is not.
+  const bear = yawOf(sub(comp.p, leader.p));
+  if (metrics.lastBearing !== null && leaderSpeed <= P.KeepWalkingLeaderSpeed) {
+    metrics.orbitDeg += Math.abs(angleDelta(metrics.lastBearing, bear));
+  }
+  if (leaderSpeed > P.KeepWalkingLeaderSpeed) metrics.orbitDeg *= Math.pow(0.4, dt);
+  metrics.lastBearing = bear;
+
+  return { goal, parked, maxSpeed, aimError, aimThreshold, noticed };
+}
+
+/* ===========================================================================
+   Recorded traces
+   =========================================================================== */
+// The engine writes a csvhead row naming its columns. Older logs have the first fifteen and
+// nothing else, so take the names from the log when it gives them and fall back when it does not.
+const COLS = ["t","lx","ly","lyaw","lspd","cx","cy","cyaw","cspd","dist","aimerr","aimthr","eye","intent","mode"];
+const COLS_WITH_GOAL = COLS.concat(["gx","gy","sdx","sdy"]);
+function parseTrace(text) {
+  const rows = [];
+  const head = /(?:^|\s)csvhead,([a-z,]+)/.exec(text);
+  let cols = head ? head[1].split(",") : null;
+  const re = /(?:^|\s)csv,([-0-9.,]+)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const parts = m[1].split(",");
+    if (!cols) cols = parts.length >= COLS_WITH_GOAL.length ? COLS_WITH_GOAL : COLS;
+    if (parts.length < cols.length) continue;
+    const r = {};
+    cols.forEach((c, i) => { r[c] = parseFloat(parts[i]); });
+    if (Number.isFinite(r.t) && Number.isFinite(r.lx)) rows.push(r);
+  }
+  if (rows.length < 20) return null;
+  rows.sort((a, b) => a.t - b.t);
+  return { rows, t0: rows[0].t, t1: rows[rows.length - 1].t };
+}
+function sampleTrace(t) {
+  const rows = trace.rows;
+  let lo = 0, hi = rows.length - 1;
+  while (lo < hi - 1) { const mid = (lo + hi) >> 1; if (rows[mid].t <= t) lo = mid; else hi = mid; }
+  const a = rows[lo], b = rows[hi];
+  const span = b.t - a.t;
+  if (span <= 1e-6) return a;
+  const k = clamp((t - a.t) / span, 0, 1);
+  const out = {};
+  for (const c in a) out[c] = lerp(a[c], b[c], k);
+  out.lyaw = a.lyaw + angleDelta(a.lyaw, b.lyaw) * k;
+  return out;
+}
+
+/* ===========================================================================
+   Drawing
+   =========================================================================== */
+const map = document.getElementById("map"), mctx = map.getContext("2d");
+const strip = document.getElementById("strip"), sctx = strip.getContext("2d");
+let view = { s: 1, ox: 0, oy: 0 };
+
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function fitView(w, h) {
+  const ww = WORLD.x1 - WORLD.x0, wh = WORLD.y1 - WORLD.y0;
+  const s = Math.min(w / ww, h / wh);
+  view = { s, ox: (w - ww * s) / 2 - WORLD.x0 * s, oy: (h - wh * s) / 2 - WORLD.y0 * s };
+}
+const sx = x => x * view.s + view.ox;
+const sy = y => y * view.s + view.oy;
+
+function drawMap() {
+  const w = map.width, h = map.height;
+  fitView(w, h);
+  const C = { bg: css("--surface"), grid: css("--grid"), line: css("--line"), ink: css("--ink"),
+              muted: css("--muted"), lead: css("--leader"), comp: css("--companion") };
+  mctx.fillStyle = C.bg; mctx.fillRect(0, 0, w, h);
+
+  // grid, 100 units fine and 500 emphasised
+  mctx.lineWidth = 1;
+  for (let gx = 0; gx <= 3000; gx += 100) {
+    mctx.strokeStyle = (gx % 500 === 0) ? C.line : C.grid;
+    mctx.beginPath(); mctx.moveTo(sx(gx), sy(WORLD.y0)); mctx.lineTo(sx(gx), sy(WORLD.y1)); mctx.stroke();
+  }
+  for (let gy = 0; gy <= 2100; gy += 100) {
+    mctx.strokeStyle = (gy % 500 === 0) ? C.line : C.grid;
+    mctx.beginPath(); mctx.moveTo(sx(WORLD.x0), sy(gy)); mctx.lineTo(sx(WORLD.x1), sy(gy)); mctx.stroke();
+  }
+
+  // rocks
+  mctx.fillStyle = C.grid; mctx.strokeStyle = C.line; mctx.lineWidth = 2;
+  for (const r of ROCKS) {
+    mctx.beginPath();
+    mctx.roundRect(sx(r.x), sy(r.y), r.w * view.s, r.h * view.s, 10 * view.s);
+    mctx.fill(); mctx.stroke();
+  }
+
+  // route
+  if (!trace && driveMode === "route") {
+    mctx.strokeStyle = C.line; mctx.lineWidth = 2; mctx.setLineDash([8, 8]);
+    mctx.beginPath();
+    ROUTE.forEach((p, i) => i ? mctx.lineTo(sx(p.x), sy(p.y)) : mctx.moveTo(sx(p.x), sy(p.y)));
+    mctx.lineTo(sx(ROUTE[0].x), sy(ROUTE[0].y));
+    mctx.stroke(); mctx.setLineDash([]);
+    mctx.fillStyle = C.muted;
+    for (const p of ROUTE) { mctx.beginPath(); mctx.arc(sx(p.x), sy(p.y), 4, 0, 7); mctx.fill(); }
+  }
+
+  // pinned reference trail
+  if (pinnedTrail) {
+    mctx.strokeStyle = C.ink; mctx.globalAlpha = 0.22; mctx.lineWidth = 7;
+    strokePath(pinnedTrail);
+    mctx.globalAlpha = 1;
+  }
+
+  // recorded companion ghost
+  if (trace) {
+    mctx.strokeStyle = C.ink; mctx.globalAlpha = 0.3; mctx.lineWidth = 6;
+    const pts = [];
+    for (let i = 0; i < trace.rows.length; i += 2) pts.push(V(trace.rows[i].cx, trace.rows[i].cy));
+    strokePath(pts);
+    mctx.globalAlpha = 1;
+  }
+
+  // trails
+  mctx.strokeStyle = C.lead; mctx.lineWidth = 3; mctx.globalAlpha = 0.5; strokePath(trail.leader);
+  mctx.strokeStyle = C.comp; mctx.lineWidth = 3; mctx.globalAlpha = 0.75; strokePath(trail.comp);
+  mctx.globalAlpha = 1;
+
+  // The roaming area: the second, wider circle, centred where you stopped rather than on you,
+  // so walking a few steps does not drag her territory along with you.
+  if (P.RoamRadius > 0) {
+    mctx.strokeStyle = C.comp; mctx.globalAlpha = comp.mode === "roam" ? 0.55 : 0.18;
+    mctx.lineWidth = 2; mctx.setLineDash([3, 9]);
+    mctx.beginPath();
+    mctx.arc(sx(leader.anchor.x), sy(leader.anchor.y), P.RoamRadius * view.s, 0, 7);
+    mctx.stroke(); mctx.setLineDash([]); mctx.globalAlpha = 1;
+  }
+
+  // Where the leader is looking, and how wide the target on her is at this range. This is the
+  // thing that was invisible: whether eye contact is happening at all.
+  {
+    const eye = V(leader.p.x, leader.p.y);
+    const reach = 1800 * view.s;
+    const half = Math.max(1, P.EyeContactBodyRadius * P.EyeContactTolerance);
+    const thr = clamp(Math.atan2(half, Math.max(1, dist(comp.p, leader.p))) * 180 / Math.PI, 3.5, 25);
+    const a0 = (leader.lookYaw - thr) * Math.PI / 180, a1 = (leader.lookYaw + thr) * Math.PI / 180;
+    mctx.fillStyle = C.lead;
+    mctx.globalAlpha = comp.lookedAt > 0 ? 0.22 : 0.1;
+    mctx.beginPath();
+    mctx.moveTo(sx(eye.x), sy(eye.y));
+    mctx.arc(sx(eye.x), sy(eye.y), reach, a0, a1);
+    mctx.closePath(); mctx.fill();
+    mctx.globalAlpha = 1;
+  }
+
+  // Where she is headed while investigating.
+  if (comp.mode === "roam" && comp.roamTarget) {
+    mctx.strokeStyle = C.comp; mctx.lineWidth = 2; mctx.globalAlpha = 0.7;
+    const t = comp.roamTarget;
+    mctx.beginPath();
+    mctx.moveTo(sx(t.x) - 9, sy(t.y) - 9); mctx.lineTo(sx(t.x) + 9, sy(t.y) + 9);
+    mctx.moveTo(sx(t.x) + 9, sy(t.y) - 9); mctx.lineTo(sx(t.x) - 9, sy(t.y) + 9);
+    mctx.stroke(); mctx.globalAlpha = 1;
+  }
+
+  // personal space ring
+  if (P.PersonalSpaceRadius > 0) {
+    mctx.strokeStyle = C.lead; mctx.globalAlpha = 0.3; mctx.lineWidth = 2; mctx.setLineDash([5, 7]);
+    mctx.beginPath(); mctx.arc(sx(leader.p.x), sy(leader.p.y), P.PersonalSpaceRadius * view.s, 0, 7);
+    mctx.stroke(); mctx.setLineDash([]); mctx.globalAlpha = 1;
+  }
+
+  // the slot
+  if (lastFrame && lastFrame.goal) {
+    mctx.strokeStyle = C.comp; mctx.globalAlpha = 0.6; mctx.lineWidth = 2;
+    mctx.beginPath(); mctx.arc(sx(lastFrame.goal.x), sy(lastFrame.goal.y), 9, 0, 7); mctx.stroke();
+    mctx.beginPath();
+    mctx.moveTo(sx(lastFrame.goal.x) - 13, sy(lastFrame.goal.y)); mctx.lineTo(sx(lastFrame.goal.x) + 13, sy(lastFrame.goal.y));
+    mctx.moveTo(sx(lastFrame.goal.x), sy(lastFrame.goal.y) - 13); mctx.lineTo(sx(lastFrame.goal.x), sy(lastFrame.goal.y) + 13);
+    mctx.stroke(); mctx.globalAlpha = 1;
+  }
+
+  drawDetective(leader.p, leader.yaw, C.lead, "A");
+  drawDetective(comp.p, comp.yaw, C.comp, "B");
+
+  // gap line
+  mctx.strokeStyle = C.muted; mctx.globalAlpha = 0.5; mctx.lineWidth = 1.5; mctx.setLineDash([3, 5]);
+  mctx.beginPath(); mctx.moveTo(sx(leader.p.x), sy(leader.p.y)); mctx.lineTo(sx(comp.p.x), sy(comp.p.y)); mctx.stroke();
+  mctx.setLineDash([]); mctx.globalAlpha = 1;
+
+  // scale bar
+  const barUnits = 500, bx = 26, by = h - 30;
+  mctx.strokeStyle = C.ink; mctx.lineWidth = 2; mctx.globalAlpha = 0.75;
+  mctx.beginPath();
+  mctx.moveTo(bx, by); mctx.lineTo(bx + barUnits * view.s, by);
+  mctx.moveTo(bx, by - 5); mctx.lineTo(bx, by + 5);
+  mctx.moveTo(bx + barUnits * view.s, by - 5); mctx.lineTo(bx + barUnits * view.s, by + 5);
+  mctx.stroke();
+  mctx.globalAlpha = 1;
+  mctx.fillStyle = C.muted; mctx.font = "500 15px " + css("--font-data");
+  mctx.fillText("5 m", bx + barUnits * view.s + 10, by + 5);
+
+  // What she is doing and why, in words, because the whole point of the second area is a rule
+  // you cannot read off a position.
+  {
+    const label = {
+      follow: "following you",
+      rest: "you are looking at her — stopped, turning to you",
+      roam: "left to herself — investigating inside her area",
+      approach: "you kept looking — coming over",
+    }[comp.mode];
+    mctx.fillStyle = comp.mode === "follow" ? C.muted : (comp.mode === "roam" ? C.comp : C.lead);
+    mctx.font = "500 16px " + css("--font-data");
+    mctx.fillText(label, 26, 32);
+    mctx.fillStyle = C.muted; mctx.font = "500 14px " + css("--font-data");
+    mctx.fillText("held for " + comp.lookedAt.toFixed(1) + "s   you still for "
+      + leader.idleTime.toFixed(1) + "s", 26, 52);
+  }
+  if (comp.pathing) {
+    mctx.fillStyle = C.muted; mctx.font = "500 15px " + css("--font-data");
+    mctx.fillText("rock in the way — going round it", 26, h - 52);
+  }
+}
+function strokePath(pts) {
+  if (!pts || pts.length < 2) return;
+  mctx.beginPath();
+  pts.forEach((p, i) => i ? mctx.lineTo(sx(p.x), sy(p.y)) : mctx.moveTo(sx(p.x), sy(p.y)));
+  mctx.stroke();
+}
+function drawDetective(p, yaw, color, letter) {
+  const x = sx(p.x), y = sy(p.y), r = Math.max(9, 34 * view.s);
+  mctx.save();
+  mctx.translate(x, y); mctx.rotate(yaw * Math.PI / 180);
+  mctx.fillStyle = color;
+  mctx.beginPath(); mctx.moveTo(r * 1.9, 0); mctx.lineTo(r * 0.5, r * 0.75); mctx.lineTo(r * 0.5, -r * 0.75); mctx.closePath();
+  mctx.globalAlpha = 0.85; mctx.fill(); mctx.globalAlpha = 1;
+  mctx.beginPath(); mctx.arc(0, 0, r, 0, 7); mctx.fill();
+  mctx.restore();
+  mctx.fillStyle = css("--surface");
+  mctx.font = "600 " + Math.round(r * 1.1) + "px " + css("--font-ui");
+  mctx.textAlign = "center"; mctx.textBaseline = "middle";
+  mctx.fillText(letter, x, y + 1);
+  mctx.textAlign = "left"; mctx.textBaseline = "alphabetic";
+}
+
+function drawStrip() {
+  const w = strip.width, h = strip.height, pad = 34;
+  const C = { bg: css("--surface"), line: css("--line"), muted: css("--muted"),
+              lead: css("--leader"), comp: css("--companion"), warn: css("--warn") };
+  sctx.fillStyle = C.bg; sctx.fillRect(0, 0, w, h);
+  const WINDOW = 14, now = simTime, tMin = now - WINDOW;
+  const SPEED_MAX = Math.max(P.RunSpeed, 400) * 1.1;
+  const GAP_MAX = Math.max(P.StartFollowDistance * 2.2, 800);
+
+  sctx.strokeStyle = C.line; sctx.lineWidth = 1;
+  sctx.fillStyle = C.muted; sctx.font = "500 15px " + css("--font-data");
+  for (let i = 0; i <= 4; i++) {
+    const y = pad + (h - pad * 2) * i / 4;
+    sctx.beginPath(); sctx.moveTo(pad * 2.2, y); sctx.lineTo(w - pad, y); sctx.stroke();
+    const sv = Math.round(SPEED_MAX * (1 - i / 4));
+    sctx.fillText(String(sv), 6, y + 5);
+  }
+  sctx.fillText("cm/s", 6, pad - 12);
+  for (let s = Math.ceil(tMin); s <= now; s++) {
+    if (s % 2) continue;
+    const x = pad * 2.2 + (w - pad * 3.2) * (s - tMin) / WINDOW;
+    sctx.strokeStyle = C.line;
+    sctx.beginPath(); sctx.moveTo(x, pad); sctx.lineTo(x, h - pad); sctx.stroke();
+    sctx.fillStyle = C.muted;
+    sctx.fillText(s + "s", x - 10, h - pad + 20);
+  }
+
+  const X = t => pad * 2.2 + (w - pad * 3.2) * (t - tMin) / WINDOW;
+  const line = (key, max, color, width) => {
+    sctx.strokeStyle = color; sctx.lineWidth = width; sctx.beginPath();
+    let started = false;
+    for (const d of series) {
+      if (d.t < tMin) continue;
+      const y = pad + (h - pad * 2) * (1 - clamp(d[key] / max, 0, 1));
+      if (!started) { sctx.moveTo(X(d.t), y); started = true; } else sctx.lineTo(X(d.t), y);
+    }
+    sctx.stroke();
+  };
+  line("gap", GAP_MAX, C.muted, 2);
+  line("intent", 1, C.warn, 2);
+  line("ls", SPEED_MAX, C.lead, 3);
+  line("cs", SPEED_MAX, C.comp, 3);
+}
+
+/* ===========================================================================
+   Readout cells
+   =========================================================================== */
+const CELLS = [
+  { k:"gap", label:"Gap", fmt:m => (m.gap/100).toFixed(2), unit:"m",
+    range:m => `${(m.gapMin===Infinity?0:m.gapMin/100).toFixed(1)} – ${(m.gapMax/100).toFixed(1)} m seen`,
+    grade:m => m.gap < P.PersonalSpaceRadius ? "bad" : (m.gap > P.StartFollowDistance * 2 ? "warn" : "ok") },
+  { k:"orbit", label:"Orbit", fmt:m => m.orbitDeg.toFixed(0), unit:"°",
+    range:() => "arc swept while you stand", grade:m => m.orbitDeg > 60 ? "bad" : m.orbitDeg > 15 ? "warn" : "ok" },
+  { k:"snatch", label:"Snatching", fmt:m => m.headingPeak.toFixed(0), unit:"°/s",
+    range:() => "peak heading swing", grade:m => m.headingPeak > 90 ? "bad" : m.headingPeak > 20 ? "warn" : "ok" },
+  { k:"hunt", label:"Hunting", fmt:m => String(m.paceFlips), unit:"/10s",
+    range:() => "pace changes its mind", grade:m => m.paceFlips > 4 ? "bad" : m.paceFlips > 1 ? "warn" : "ok" },
+  { k:"glide", label:"Stop glide", fmt:m => (m.glide/100).toFixed(2), unit:"m",
+    range:() => "walked while easing off", grade:m => m.glide < 30 ? "bad" : (m.glide/100 > 2.5 ? "warn" : "ok") },
+  { k:"crowd", label:"Too close", fmt:m => (100 * m.crowdTime / Math.max(0.1, m.totalTime)).toFixed(0), unit:"%",
+    range:() => "of the time inside your space", grade:m => {
+      const r = m.crowdTime / Math.max(0.1, m.totalTime);
+      return r > 0.1 ? "bad" : r > 0.02 ? "warn" : "ok"; } },
+];
+const readoutEl = document.getElementById("readout");
+readoutEl.innerHTML = CELLS.map(c => `<div class="cell"><div class="k">${c.label}</div>
+  <div class="v" id="cv-${c.k}">0<span class="u"> ${c.unit}</span></div>
+  <div class="r" id="cr-${c.k}"></div><span class="stripe" id="cs-${c.k}"></span></div>`).join("");
+let pinnedRow = null;
+
+function updateReadout() {
+  for (const c of CELLS) {
+    const v = document.getElementById("cv-" + c.k);
+    const r = document.getElementById("cr-" + c.k);
+    const s = document.getElementById("cs-" + c.k);
+    let txt = c.fmt(metrics) + `<span class="u"> ${c.unit}</span>`;
+    if (pinnedMetrics) {
+      const was = c.fmt(pinnedMetrics);
+      txt += `<span class="u"> ← ${was}</span>`;
+    }
+    v.innerHTML = txt;
+    r.textContent = c.range(metrics);
+    s.className = "stripe " + c.grade(metrics);
+  }
+}
+
+/* ===========================================================================
+   Parameter rack
+   =========================================================================== */
+const rackEl = document.getElementById("rack");
+function buildRack() {
+  rackEl.innerHTML = GROUPS.map(g => `
+    <details class="grp"${g.open ? " open" : ""}>
+      <summary>${g.name}</summary>
+      <div class="body">${g.items.map(it => it.b ? boolRow(it) : sliderRow(it)).join("")}</div>
+    </details>`).join("");
+
+  for (const g of GROUPS) for (const it of g.items) {
+    const el = document.getElementById("i-" + it.k);
+    el.addEventListener("input", () => {
+      P[it.k] = it.b ? el.checked : parseFloat(el.value);
+      syncOne(it.k);
+      refreshExports();
+      savePrefs();
+    });
+  }
+}
+function sliderRow(it) {
+  return `<label class="p" for="i-${it.k}">
+    <span class="top"><span class="name">${it.t}</span><span class="num" id="n-${it.k}"></span></span>
+    <input type="range" id="i-${it.k}" min="${it.min}" max="${it.max}" step="${it.step}" value="${it.v}">
+    ${it.h ? `<span class="help">${it.h}</span>` : ""}</label>`;
+}
+function boolRow(it) {
+  return `<label class="p bool" for="i-${it.k}">
+    <input type="checkbox" id="i-${it.k}"${it.v ? " checked" : ""}>
+    <span><span class="name">${it.t}</span>${it.h ? `<span class="help">${it.h}</span>` : ""}</span></label>`;
+}
+function syncOne(k) {
+  const it = META[k], el = document.getElementById("i-" + k);
+  if (it.b) { el.checked = !!P[k]; return; }
+  el.value = P[k];
+  const n = document.getElementById("n-" + k);
+  const dec = it.step < 1 ? 2 : 0;
+  n.textContent = Number(P[k]).toFixed(dec) + (it.u ? " " + it.u : "");
+  n.className = "num" + (Math.abs(P[k] - DEFAULTS[k]) > 1e-6 ? " off" : "");
+}
+function syncAll() { for (const k in P) syncOne(k); refreshExports(); }
+
+function applyPreset(name) {
+  for (const k in DEFAULTS) P[k] = DEFAULTS[k];
+  const over = PRESETS[name] || {};
+  for (const k in over) if (k in P) P[k] = over[k];
+  syncAll(); savePrefs();
+}
+
+/* ===========================================================================
+   Export, live push, preferences
+   =========================================================================== */
+function tuneLines() {
+  // No separate "switch it on" line: setting a value is the whole point, so ViperTune turns
+  // overriding on itself. ViperTuneReset with no name hands the asset back.
+  const out = [];
+  for (const g of GROUPS) for (const it of g.items) {
+    const v = it.b ? (P[it.k] ? 1 : 0) : (it.step < 1 ? Number(P[it.k]).toFixed(3).replace(/0+$/, "").replace(/\.$/, "") : P[it.k]);
+    out.push(`ViperTune ${it.k} ${v}`);
+  }
+  return out;
+}
+function refreshExports() {
+  document.getElementById("cmds").textContent = tuneLines().join("\n");
+}
+async function copyText(text, label) {
+  const st = document.getElementById("copystatus");
+  try { await navigator.clipboard.writeText(text); st.textContent = label + " copied."; st.className = "status ok"; }
+  catch (e) {
+    st.textContent = "Could not reach the clipboard - select the text above instead.";
+    st.className = "status bad";
+  }
+  setTimeout(() => { st.textContent = ""; st.className = "status"; }, 3500);
+}
+
+// The tuning object keeps one name-to-value map rather than a property per parameter, so that
+// adding a parameter to the task needs no new plumbing anywhere. That means pushing a value is a
+// function call rather than a property write: SetOverride resolves the name by reflection against
+// the task, reports a name that does not exist, and switches overriding on by itself.
+const OBJECT_PATH = "/Script/Multiplayer_GAS.Default__ViperCompanionTuning";
+async function pushLive() {
+  const st = document.getElementById("pushstatus");
+  const host = document.getElementById("host").value.replace(/\/+$/, "");
+  st.textContent = "Pushing…"; st.className = "status";
+
+  let ok = 0, fail = 0, firstError = "";
+  for (const g of GROUPS) for (const it of g.items) {
+    const value = it.b ? (P[it.k] ? 1 : 0) : Number(P[it.k]);
+    try {
+      const res = await fetch(host + "/remote/object/call", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          objectPath: OBJECT_PATH,
+          functionName: "SetOverride",
+          parameters: { Name: it.k, Value: value },
+          generateTransaction: true,
+        }),
+      });
+      if (res.ok) ok++; else { fail++; if (!firstError) firstError = "HTTP " + res.status; }
+    } catch (e) {
+      fail++; if (!firstError) firstError = String(e.message || e);
+    }
+  }
+
+  if (ok && !fail) { st.textContent = `Pushed ${ok} values. They take effect on the next tick.`; st.className = "status ok"; }
+  else if (ok) { st.textContent = `Pushed ${ok}, ${fail} refused (${firstError}).`; st.className = "status"; }
+  else { st.textContent = `Nothing got through (${firstError}). Is the game running with Remote Control on?`; st.className = "status bad"; }
+}
+
+const PREF_KEY = "viper-follow-lab-v1";
+function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify(P)); } catch (e) {} }
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(PREF_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    for (const k in saved) if (k in P && typeof saved[k] === typeof P[k]) P[k] = saved[k];
+  } catch (e) {}
+}
+
+/* ===========================================================================
+   Wiring
+   =========================================================================== */
+const playBtn = document.getElementById("play");
+playBtn.addEventListener("click", () => {
+  running = !running;
+  playBtn.textContent = running ? "Pause" : "Play";
+});
+document.getElementById("reset").addEventListener("click", () => resetSim(true));
+document.getElementById("speed").addEventListener("change", e => { timeScale = parseFloat(e.target.value); });
+for (const id of ["d-route", "d-mouse", "d-stand"]) {
+  document.getElementById(id).addEventListener("change", e => {
+    driveMode = e.target.value;
+    document.getElementById("modepill").textContent =
+      trace ? "replaying a recorded run" :
+      driveMode === "mouse" ? "you are driving" :
+      driveMode === "stand" ? "standing and turning on the spot" : "simulated route";
+    resetSim(true);
+  });
+}
+document.getElementById("lookat").addEventListener("change", e => { lookAtCompanion = e.target.checked; });
+document.getElementById("preset").addEventListener("change", e => applyPreset(e.target.value));
+document.getElementById("helptoggle").addEventListener("click", e => {
+  rackEl.classList.toggle("showhelp");
+  e.target.textContent = rackEl.classList.contains("showhelp") ? "Hide notes" : "Explain";
+});
+document.getElementById("pin").addEventListener("click", () => {
+  pinnedMetrics = JSON.parse(JSON.stringify(metrics));
+  pinnedTrail = trail.comp.slice();
+  pinnedName = document.getElementById("preset").selectedOptions[0].textContent;
+  document.getElementById("pinned").textContent =
+    "Reference pinned. The faint line and the small numbers are from that run.";
+  document.getElementById("pinned").className = "status ok";
+});
+document.getElementById("copycmds").addEventListener("click", () => copyText(tuneLines().join("\n"), "Commands"));
+document.getElementById("copyjson").addEventListener("click", () => copyText(JSON.stringify(P, null, 2), "JSON"));
+document.getElementById("push").addEventListener("click", pushLive);
+
+document.getElementById("tracefile").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0];
+  const st = document.getElementById("tracestatus");
+  if (!f) return;
+  st.textContent = "Reading " + f.name + "...";
+  const fr = new FileReader();
+  fr.onload = () => {
+    const parsed = parseTrace(String(fr.result));
+    if (!parsed) {
+      st.textContent = "No csv rows in that file. Run with Viper.Companion.Csv 1.";
+      st.className = "status bad";
+      return;
+    }
+    trace = parsed;
+    st.textContent = `${parsed.rows.length} samples, ${(parsed.t1 - parsed.t0).toFixed(1)} s of play.`;
+    st.className = "status ok";
+    document.getElementById("ghostkey").hidden = false;
+    document.getElementById("cleartrace").hidden = false;
+    document.getElementById("modepill").textContent = "replaying a recorded run";
+    resetSim(true);
+  };
+  fr.onerror = () => { st.textContent = "Could not read that file."; st.className = "status bad"; };
+  fr.readAsText(f);
+});
+document.getElementById("cleartrace").addEventListener("click", () => {
+  trace = null;
+  document.getElementById("ghostkey").hidden = true;
+  document.getElementById("cleartrace").hidden = true;
+  document.getElementById("tracestatus").textContent = "No log loaded.";
+  document.getElementById("tracestatus").className = "status";
+  document.getElementById("modepill").textContent = "simulated route";
+  resetSim(true);
+});
+
+map.addEventListener("pointermove", e => {
+  const r = map.getBoundingClientRect();
+  const px = (e.clientX - r.left) * (map.width / r.width);
+  const py = (e.clientY - r.top) * (map.height / r.height);
+  mouseWorld = V((px - view.ox) / view.s, (py - view.oy) / view.s);
+});
+map.addEventListener("pointerleave", () => { mouseWorld = null; });
+
+/* ------------------------------------------------------------------ main loop */
+let lastFrame = null, lastMs = performance.now(), acc = 0;
+const FIXED = 1 / 120;
+
+function frame(ms) {
+  const wall = Math.min(0.05, (ms - lastMs) / 1000);
+  lastMs = ms;
+  if (running) {
+    acc += wall * timeScale;
+    let guard = 0;
+    while (acc >= FIXED && guard++ < 30) {
+      acc -= FIXED;
+      simTime += FIXED;
+      stepLeader(FIXED);
+      updateLeaderAttention(FIXED);
+      lastFrame = stepCompanion(FIXED);
+      if (trail.leader.length === 0 || dist(trail.leader[trail.leader.length - 1], leader.p) > 14) {
+        trail.leader.push(V(leader.p.x, leader.p.y));
+        if (trail.leader.length > 1400) trail.leader.shift();
+      }
+      if (trail.comp.length === 0 || dist(trail.comp[trail.comp.length - 1], comp.p) > 14) {
+        trail.comp.push(V(comp.p.x, comp.p.y));
+        if (trail.comp.length > 1400) trail.comp.shift();
+      }
+      series.push({ t: simTime, ls: len(leader.v), cs: len(comp.v), gap: metrics.gap, intent: comp.intent });
+      if (series.length > 3000) series.shift();
+    }
+  }
+  drawMap();
+  drawStrip();
+  updateReadout();
+  requestAnimationFrame(frame);
+}
+
+function sizeCanvases() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  for (const [c, ratio] of [[map, 0.625], [strip, 0.26]]) {
+    const w = c.parentElement.clientWidth || 800;
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(w * ratio * dpr);
+    c.style.height = Math.round(w * ratio) + "px";
+  }
+}
+window.addEventListener("resize", sizeCanvases);
+
+loadPrefs();
+buildRack();
+syncAll();
+sizeCanvases();
+resetSim(true);
+if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  running = false; playBtn.textContent = "Play";
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

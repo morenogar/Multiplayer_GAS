@@ -1,0 +1,22 @@
+Viper.Companion.Debug 1
+Viper.Companion.DebugInterval 0.2
+Viper.Companion.Csv 1
+ViperTune SideSwapTime 0
+ViperTune SteerSmoothTime 0
+ViperTune bHoldBearingWhileLeaderStands 0
+ViperTune PaceMatchTolerance 0
+ViperTune SpeedChangeRate 0
+ViperTune bFaceLeaderWhenStopped 0
+ViperTune SettleStartDistance 0
+ViperTune HeadingFollowWeight 0
+ViperTune MinSteerReach 100000
+ViperQGoTo BP_Companion
+ViperQInteract
+ViperQWait 2
+ViperQGoTo ABilityActor1
+ViperQLook BP_Companion 6
+ViperQGoTo BP_ClueActor_C_1
+ViperQTurn 180 2
+ViperQWalk 3
+ViperQWait 8
+ViperQRun

@@ -8,7 +8,7 @@ public class Multiplayer_GAS : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",	"UMG", "CommonUI", "GameplayAbilities", "OnlineSubsystemSteam", "OnlineSubsystem", "OnlineSubsystemUtils" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",	"UMG", "CommonUI", "GameplayAbilities", "OnlineSubsystemSteam", "OnlineSubsystem", "OnlineSubsystemUtils", "ModelViewViewModel", "AIModule", "NavigationSystem", "StateTreeModule", "GameplayStateTreeModule", "DeveloperSettings" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "EnhancedInput" , "GameplayAbilities" , "GameplayTasks" , "GameplayTags", "Slate", "SlateCore", "CommonUI", "CommonInput"});
 

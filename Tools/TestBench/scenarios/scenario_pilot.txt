@@ -1,0 +1,5 @@
+Viper.Companion.Debug 1
+Viper.Companion.DebugInterval 1.0
+ViperPilotStart
+ViperPilotStatus
+ViperPilotGoTo ABilityActor

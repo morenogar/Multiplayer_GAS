@@ -2,6 +2,8 @@
 
 
 #include "Player/ViperPlayerCharacter.h"
+
+#include "AI/ViperCompanionStateTreeNodes.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -16,6 +18,9 @@
 #include "Components/SphereComponent.h"
 #include "Interactables/ViperObjectDefinition.h"
 #include "Interactables/ViperObjectDefinitionInterface.h"
+#include "AI/ViperCompanionCharacter.h"
+#include "Player/ViperPlayerController.h"
+#include "Net/UnrealNetwork.h"
 
 AViperPlayerCharacter::AViperPlayerCharacter()
 {
@@ -28,9 +33,21 @@ AViperPlayerCharacter::AViperPlayerCharacter()
 	ViewCamera = CreateDefaultSubobject<UCameraComponent>("View Camera");
 	ViewCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 
+	// The character faces where the camera faces, turning into it at RotationRate.
 	bUseControllerRotationYaw = false;
-	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->bOrientRotationToMovement = false;
+	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f,720.0f,0.0f);
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+
+	// Weight. The engine template leaves acceleration and braking at 2048, where full speed and a
+	// dead stop both arrive inside a tenth of a second: fine for an arcade character, wrong for a
+	// detective walking a mountain path next to someone. All three are EditDefaultsOnly, so they
+	// can be dialled in the Blueprint without coming back here.
+	GetCharacterMovement()->MaxAcceleration = WalkAcceleration;
+	GetCharacterMovement()->bUseSeparateBrakingFriction = true;
+	GetCharacterMovement()->BrakingFriction = WalkBrakingFriction;
+	GetCharacterMovement()->BrakingDecelerationWalking = WalkBraking;
 	
 	
 	InteractionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphere"));
@@ -66,11 +83,27 @@ void AViperPlayerCharacter::BeginPlay()
 	
 	InteractionSphere->OnComponentBeginOverlap.AddDynamic(this, &AViperPlayerCharacter::OnSphereBeginOverlap);
 	InteractionSphere->OnComponentEndOverlap.AddDynamic(this, &AViperPlayerCharacter::OnSphereEndOverlap);
+
+	// WalkSpeed owns the speed, even if the Blueprint brought its own MaxWalkSpeed.
+	ApplyMovementSpeed();
 }
 
 void AViperPlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// Ease between the walk and the sprint instead of switching between them. ApplyMovementSpeed
+	// owns which speed is wanted; this owns how fast the legs get there. It runs everywhere,
+	// including on simulated proxies, because bIsSprinting is replicated - so the ramp other
+	// players see is the same ramp the owner feels.
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		const float Target = bIsSprinting ? SprintSpeed : WalkSpeed;
+		CurrentSpeed = SpeedChangeRate > 0.f
+			? FMath::FInterpConstantTo(CurrentSpeed, Target, DeltaTime, SpeedChangeRate)
+			: Target;
+		Movement->MaxWalkSpeed = FMath::Max(1.f, CurrentSpeed);
+	}
 
 	SelectBestInteractable();
 }
@@ -80,7 +113,16 @@ void AViperPlayerCharacter::PawnClientRestart()
 	Super::PawnClientRestart();
 	if(APlayerController* OwningPlayerController = GetController<APlayerController>())
 	{
-		if(UEnhancedInputLocalPlayerSubsystem* InputSubsystem = OwningPlayerController->GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+		// A player controller without a local player is a real thing - a remote client's proxy on
+		// a listen server, and the test pilot - and GetLocalPlayer() is null for both. Calling
+		// through it crashed the moment the pilot possessed a pawn.
+		ULocalPlayer* LocalPlayer = OwningPlayerController->GetLocalPlayer();
+		if(!LocalPlayer)
+		{
+			return;
+		}
+
+		if(UEnhancedInputLocalPlayerSubsystem* InputSubsystem = LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 		{
 			InputSubsystem->RemoveMappingContext(GameplayInputMapping);
 			InputSubsystem->AddMappingContext(GameplayInputMapping,0);
@@ -101,11 +143,26 @@ void AViperPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 		EnhancedInputComponent->BindAction(LookInputAction, ETriggerEvent::Triggered, this, &AViperPlayerCharacter::HandleLookInput);
 		EnhancedInputComponent->BindAction(MoveInputAction, ETriggerEvent::Triggered, this, &AViperPlayerCharacter::HandleMoveInput);
 		EnhancedInputComponent->BindAction(InteractInputAction, ETriggerEvent::Triggered, this, &AViperPlayerCharacter::HandleInteract);
+
+		if (SprintInputAction)
+		{
+			EnhancedInputComponent->BindAction(SprintInputAction, ETriggerEvent::Started, this, &AViperPlayerCharacter::HandleSprintStarted);
+			EnhancedInputComponent->BindAction(SprintInputAction, ETriggerEvent::Completed, this, &AViperPlayerCharacter::HandleSprintCompleted);
+			EnhancedInputComponent->BindAction(SprintInputAction, ETriggerEvent::Canceled, this, &AViperPlayerCharacter::HandleSprintCompleted);
+		}
 		
 		if (AViperEIC && InputConfig)
 		{
 			TArray<uint32> BindHandles;
 			AViperEIC->BindAbilityActions(InputConfig, this, &AViperPlayerCharacter::InputAbilityInputTagPressed, &AViperPlayerCharacter::InputAbilityInputTagReleased, BindHandles);
+		}
+		
+		for (const FViperCompanionOrderInput& OrderInput : CompanionOrderInputs)
+		{
+			if (OrderInput.InputAction && OrderInput.OrderTag.IsValid())
+			{
+				EnhancedInputComponent->BindAction(OrderInput.InputAction.Get(), ETriggerEvent::Started, this, &AViperPlayerCharacter::HandleCompanionOrderInput, OrderInput.OrderTag);
+			}
 		}
 	}
 }
@@ -175,6 +232,34 @@ void AViperPlayerCharacter::InputAbilityInputTagReleased(FGameplayTag InputTag)
 	}
 }
 
+void AViperPlayerCharacter::HandleCompanionOrderInput(FGameplayTag OrderTag)
+{
+	AViperPlayerController* ViperPlayerController = GetController<AViperPlayerController>();
+	if (!ViperPlayerController || !ViperPlayerController->GetCompanion())
+	{
+		return;
+	}
+	
+	FVector ViewLocation;
+	FRotator ViewRotation;
+	ViperPlayerController->GetPlayerViewPoint(ViewLocation, ViewRotation);
+	const FVector TraceEnd = ViewLocation + ViewRotation.Vector() * CompanionOrderTraceDistance;
+	
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(CompanionOrderTrace), false, this);
+	Params.AddIgnoredActor(ViperPlayerController->GetCompanion());
+	
+	// Object trace so character capsules (Pawn) are hit too: needed to aim Attack orders at characters.
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	
+	FHitResult Hit;
+	const bool bHit = GetWorld()->LineTraceSingleByObjectType(Hit, ViewLocation, TraceEnd, ObjectParams, Params);
+	
+	ViperPlayerController->ServerIssueCompanionOrder(OrderTag, bHit ? Hit.ImpactPoint : TraceEnd, bHit ? Hit.GetActor() : nullptr);
+}
+
 void AViperPlayerCharacter::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	if (!OtherActor) return;
@@ -201,11 +286,15 @@ void AViperPlayerCharacter::SelectBestInteractable()
 {
 	CurrentInteractable = nullptr;
 
-	if(APlayerController* OwningPlayerController = GetController<APlayerController>())
+	// Any controller, not only a player's: GetPlayerViewPoint is virtual on AController, and an AI
+	// gets the pawn's eyes and its control rotation from it. Demanding a PlayerController here
+	// meant an AI-driven pawn could never pick anything up - measured, the test pilot walked to
+	// the companion, turned to face her, and still found "nothing in range" every time.
+	if(AController* OwningController = GetController())
 	{
 		FVector CamLoc;
 	    FRotator CamRot;
-	    OwningPlayerController->GetPlayerViewPoint(CamLoc, CamRot);
+	    OwningController->GetPlayerViewPoint(CamLoc, CamRot);
 
 	    FVector Forward = CamRot.Vector();
 		
@@ -314,13 +403,31 @@ void AViperPlayerCharacter::Landed(const FHitResult& Hit)
 
 void AViperPlayerCharacter::HandleInteract(const FInputActionValue& InputActionValue)
 {
-	if (CurrentInteractable == nullptr) return;
-	
+	TriggerInteract();
+}
+
+bool AViperPlayerCharacter::TriggerInteract()
+{
+	if (CurrentInteractable == nullptr)
+	{
+		// Which of the two ways of finding something came up empty, rather than just "nothing":
+		// the trace needs line of sight to something with an object definition, the list needs
+		// the interaction spheres to be overlapping.
+		UE_LOG(LogViperCompanion, Verbose,
+			TEXT("interact | nothing selected, %d actor(s) in range"), InteractableActorsInRange.Num());
+		return false;
+	}
+
 	if (IViperInteractableInterface* InterfaceInstance = Cast<IViperInteractableInterface>(CurrentInteractable))
 	{
 		if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+		{
 			InterfaceInstance->Interact(PlayerController);
+			return true;
+		}
 	}
+
+	return false;
 }
 
 void AViperPlayerCharacter::HandleLookInput(const FInputActionValue& InputActionValue)
@@ -353,5 +460,73 @@ void AViperPlayerCharacter::HandleMoveInput(const FInputActionValue& InputAction
 FVector AViperPlayerCharacter::GetLookRightDirection() const
 {
 	return ViewCamera->GetRightVector();
+}
+
+void AViperPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	// The owner already set it locally when it pressed the key, so it does not need the echo.
+	DOREPLIFETIME_CONDITION(AViperPlayerCharacter, bIsSprinting, COND_SkipOwner);
+}
+
+void AViperPlayerCharacter::ApplyMovementSpeed()
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (!Movement)
+	{
+		return;
+	}
+
+	const float Target = bIsSprinting ? SprintSpeed : WalkSpeed;
+
+	// First time through, or no ramp asked for: take the speed at once. Otherwise Tick walks it
+	// there, so that breaking into a run is a change of gait over a few strides rather than a new
+	// number arriving in one frame.
+	if (CurrentSpeed <= 0.f || SpeedChangeRate <= 0.f)
+	{
+		CurrentSpeed = Target;
+	}
+
+	Movement->MaxWalkSpeed = FMath::Max(1.f, CurrentSpeed);
+}
+
+void AViperPlayerCharacter::SetSprinting(const bool bNewSprinting)
+{
+	if (bIsSprinting == bNewSprinting)
+	{
+		return;
+	}
+
+	bIsSprinting = bNewSprinting;
+	ApplyMovementSpeed();
+
+	// Without this the server keeps simulating at the old speed and corrects the client back.
+	if (!HasAuthority())
+	{
+		ServerSetSprinting(bNewSprinting);
+	}
+}
+
+void AViperPlayerCharacter::ServerSetSprinting_Implementation(const bool bNewSprinting)
+{
+	bIsSprinting = bNewSprinting;
+	ApplyMovementSpeed();
+}
+
+void AViperPlayerCharacter::OnRep_IsSprinting()
+{
+	// Simulated proxies: keep the movement component in step with what they are shown.
+	ApplyMovementSpeed();
+}
+
+void AViperPlayerCharacter::HandleSprintStarted()
+{
+	SetSprinting(true);
+}
+
+void AViperPlayerCharacter::HandleSprintCompleted()
+{
+	SetSprinting(false);
 }
 
