@@ -1,0 +1,3 @@
+Viper.Companion.Debug 1
+Viper.Companion.DebugInterval 3.0
+ViperPlayAs ai

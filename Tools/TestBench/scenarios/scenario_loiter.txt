@@ -1,0 +1,18 @@
+Viper.Companion.Debug 1
+Viper.Companion.DebugInterval 0.3
+ViperQGoTo BP_Companion
+ViperQInteract
+ViperQWait 2
+ViperQGoTo ABilityActor1
+ViperQTurn 0 1
+ViperQWalk 0.9
+ViperQTurn 170 1
+ViperQWalk 0.9
+ViperQTurn 300 1
+ViperQWalk 0.9
+ViperQTurn 120 1
+ViperQWalk 0.9
+ViperQTurn 250 1
+ViperQWalk 0.9
+ViperQWait 3
+ViperQRun

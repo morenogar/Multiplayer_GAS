@@ -1,0 +1,4 @@
+Viper.Companion.Debug 1
+Viper.Companion.DebugInterval 2.0
+ViperPilotStart
+ViperPilotRecruit Companion

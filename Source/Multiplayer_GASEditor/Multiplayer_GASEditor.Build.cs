@@ -16,6 +16,15 @@ public class Multiplayer_GASEditor : ModuleRules
             "UnrealEd",   // Required for UFactory
             "Multiplayer_GAS" // Your runtime module
         });
-        
+
+        // UViperStateTreeEditLibrary: edits StateTree assets (states, conditions, bindings).
+        PrivateDependencyModuleNames.AddRange(new string[]
+        {
+            "StateTreeModule",
+            "StateTreeEditorModule",
+            "PropertyBindingUtils",
+            "GameplayTags",
+            "Json"
+        });
     }
 }

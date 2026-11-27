@@ -11,6 +11,8 @@
  * 
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJoinCodeSessionFounded, bool, bFounded);
+/** bWasSuccessful = true when a Steam invite was accepted and we started joining; false if the invite or the join failed. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSteamInviteAccepted, bool, bWasSuccessful);
 
 UCLASS()
 class MULTIPLAYER_GAS_API UViperBootUpSubsystem : public ULocalPlayerSubsystem
@@ -42,8 +44,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Viper|BootUp")
 	FString GetCurrentSessionID() {return CurrentSessionID; };
 	
+	/** Opens the Steam overlay to invite friends to the current session. Only works with Steam running (Standalone / packaged). */
+	UFUNCTION(BlueprintCallable, Category = "Viper|BootUp")
+	bool ShowSteamInviteOverlay();
+	
+	UFUNCTION(BlueprintPure, Category = "Viper|BootUp")
+	bool IsInSession() const;
+	
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnJoinCodeSessionFounded OnJoinCodeSessionFounded;
+	
+	/** Use it to show a "Joining friend..." popup, or an error if it fails. Travel to the host is automatic. */
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnSteamInviteAccepted OnSteamInviteAccepted;
 	
 protected:
 	
@@ -52,6 +65,7 @@ protected:
 	
 	void OnFindSessions(const TArray<FOnlineSessionSearchResult>& SessionSearchResults, bool bWasSuccessful, FString LastSessionCode);
 	void OnJoinSession(EOnJoinSessionCompleteResult::Type Result);
+	void OnSessionInviteAccepted(bool bWasSuccessful, const FOnlineSessionSearchResult& InviteResult);
 	
 	UFUNCTION()
 	void OnDestroySession(bool bWasSuccessful);
@@ -68,4 +82,7 @@ private:
 	FString CurrentSessionID = "";
 	
 	FString LastValidAddress = "";
+	
+	/** True while joining a session from a Steam invite: travel automatically when the join completes. */
+	bool bTravelOnJoin = false;
 };

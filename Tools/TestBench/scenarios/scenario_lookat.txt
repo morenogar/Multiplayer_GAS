@@ -1,0 +1,5 @@
+Viper.Companion.Debug 1
+Viper.Companion.DebugInterval 1.0
+ViperPlayAs ai
+ViperAfter 60 ViperPilotLook|BP_Companion|30
+ViperAfter 95 ViperPilotLook|ViperClueActor

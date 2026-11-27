@@ -1,0 +1,4 @@
+Viper.Companion.Debug 1
+Viper.Companion.DebugInterval 3.0
+ViperPilotStart
+ViperPilotTour Companion+ViperItem+ViperItem+ViperItem 1

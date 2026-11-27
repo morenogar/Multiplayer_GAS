@@ -48,7 +48,7 @@ void FViperAbilitySet_GrantedHandles::AddAbility(UViperAbilitySystemComponent* V
 
 	if (InputTag.IsValid())
 	{
-		AbilitySpec.DynamicAbilityTags.AddTag(InputTag);
+		AbilitySpec.GetDynamicSpecSourceTags().AddTag(InputTag);
 	}
 
 	const FGameplayAbilitySpecHandle AbilitySpecHandle = ViperAbilitySystemComponent->GiveAbility(AbilitySpec);
@@ -85,7 +85,7 @@ void UViperAbilitySet::GiveToAbilitySystem(UViperAbilitySystemComponent* ViperAb
 
 		FGameplayAbilitySpec AbilitySpec(AbilityCDO, AbilityToGrant.AbilityLevel);
 		AbilitySpec.SourceObject = SourceObject;
-		AbilitySpec.DynamicAbilityTags.AddTag(AbilityToGrant.InputTag);
+		AbilitySpec.GetDynamicSpecSourceTags().AddTag(AbilityToGrant.InputTag);
 
 		const FGameplayAbilitySpecHandle AbilitySpecHandle = ViperAbilitySystemComponent->GiveAbility(AbilitySpec);
 
