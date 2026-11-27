@@ -5,6 +5,7 @@
 
 #include "OnlineSessionSettings.h"
 #include "Framework/ViperSessionsSubsystem.h"
+#include "OnlineSubsystem.h"
 
 void UViperBootUpSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -22,6 +23,7 @@ void UViperBootUpSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		ViperSessionsSubsystem->ViperOnJoinSessionCompleteDelegate.AddUObject(this,&UViperBootUpSubsystem::OnJoinSession);
 		ViperSessionsSubsystem->ViperOnDestroySessionCompleteDelegate.AddDynamic(this,&UViperBootUpSubsystem::OnDestroySession);
 		ViperSessionsSubsystem->ViperOnStartSessionCompleteDelegate.AddDynamic(this,&UViperBootUpSubsystem::OnStartSession);
+		ViperSessionsSubsystem->ViperOnSessionInviteAcceptedDelegate.AddUObject(this,&UViperBootUpSubsystem::OnSessionInviteAccepted);
 	}
 }
 
@@ -110,23 +112,65 @@ void UViperBootUpSubsystem::OnFindSessions(const TArray<FOnlineSessionSearchResu
 
 void UViperBootUpSubsystem::OnJoinSession(EOnJoinSessionCompleteResult::Type Result)
 {
-	if (IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get())
+	const bool bJoinedFromInvite = bTravelOnJoin;
+	bTravelOnJoin = false;
+	
+	bool bResolved = false;
+	if (Result == EOnJoinSessionCompleteResult::Success)
 	{
-		if (IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface())
+		if (IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get())
 		{
-			if (SessionInterface->GetResolvedConnectString(NAME_GameSession, LastValidAddress))
+			if (IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface())
 			{
-					OnJoinCodeSessionFounded.Broadcast(true);
+				bResolved = SessionInterface->GetResolvedConnectString(NAME_GameSession, LastValidAddress);
 			}
 		}
 	}
 	
-	if (Result != EOnJoinSessionCompleteResult::Success)
+	if (!bResolved)
 	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString::Printf(TEXT("Failed to Join session")));
-		OnJoinCodeSessionFounded.Broadcast(false);
 		CurrentSessionID = "";
+		LastValidAddress = "";
+		if (bJoinedFromInvite)
+		{
+			OnSteamInviteAccepted.Broadcast(false);
+		}
+		else
+		{
+			OnJoinCodeSessionFounded.Broadcast(false);
+		}
+		return;
 	}
+	
+	// Steam invite: no UI step in between, travel straight to the host.
+	if (bJoinedFromInvite)
+	{
+		OpenLobbyLevel();
+		return;
+	}
+	
+	OnJoinCodeSessionFounded.Broadcast(true);
+}
+
+void UViperBootUpSubsystem::OnSessionInviteAccepted(bool bWasSuccessful, const FOnlineSessionSearchResult& InviteResult)
+{
+	if (bWasSuccessful)
+	{
+		bTravelOnJoin = true;
+		CurrentSessionID = InviteResult.GetSessionIdStr().Right(5);
+	}
+	OnSteamInviteAccepted.Broadcast(bWasSuccessful);
+}
+
+bool UViperBootUpSubsystem::ShowSteamInviteOverlay()
+{
+	return ViperSessionsSubsystem && ViperSessionsSubsystem->ShowInviteUI();
+}
+
+bool UViperBootUpSubsystem::IsInSession() const
+{
+	return ViperSessionsSubsystem && ViperSessionsSubsystem->IsInSession();
 }
 
 void UViperBootUpSubsystem::OnDestroySession(bool bWasSuccessful)

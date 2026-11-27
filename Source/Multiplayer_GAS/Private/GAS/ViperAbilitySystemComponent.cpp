@@ -25,7 +25,7 @@ void UViperAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& In
 	{
 		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
-			if (AbilitySpec.Ability && (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag)))
+			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))
 			{
 				InputPressedSpecHandles.AddUnique(AbilitySpec.Handle);
 			}
@@ -39,7 +39,7 @@ void UViperAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& I
 	{
 		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
-			if (AbilitySpec.Ability && (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag)))
+			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))
 			{
 				InputReleasedSpecHandles.AddUnique(AbilitySpec.Handle);
 			}
