@@ -563,6 +563,32 @@ void AViperPlayerController::ViperPilotWander(float Radius)
 	}
 }
 
+void AViperPlayerController::ViperPilotSpeed(const float Speed)
+{
+#if !UE_BUILD_SHIPPING
+	for (AViperTestPilotController* Pilot : AViperTestPilotController::All(GetWorld()))
+	{
+		APawn* PilotPawn = Pilot->GetPawn();
+		if (!PilotPawn)
+		{
+			continue;
+		}
+		// The character owns MaxWalkSpeed through its WalkSpeed property and rewrites it every tick,
+		// so that is the one to change. By reflection, so this test command needs no setter on the
+		// player character just for itself.
+		if (FFloatProperty* WalkSpeedProperty = FindFProperty<FFloatProperty>(PilotPawn->GetClass(), TEXT("WalkSpeed")))
+		{
+			WalkSpeedProperty->SetPropertyValue_InContainer(PilotPawn, FMath::Max(1.f, Speed));
+			UE_LOG(LogViperCompanion, Log, TEXT("pilot | SPEED %.0f cm/s"), Speed);
+		}
+		else
+		{
+			UE_LOG(LogViperCompanion, Warning, TEXT("pilot | %s has no WalkSpeed property"), *PilotPawn->GetName());
+		}
+	}
+#endif
+}
+
 void AViperPlayerController::ViperAfter(const float Seconds, const FString& Command)
 {
 #if !UE_BUILD_SHIPPING

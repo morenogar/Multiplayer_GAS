@@ -79,6 +79,36 @@ struct FViperCompanionEvaluatorInstanceData
 	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (ClampMin = "0"))
 	float EyeContactBreakGrace = 0.5f;
 
+	/** Shared attention: how long you have to keep looking at the same thing before she looks at it too. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|SharedAttention", meta = (ClampMin = "0"))
+	float FocusHoldTime = 1.5f;
+
+	/** How far the point you look at may drift and still count as the same thing. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|SharedAttention", meta = (ClampMin = "10"))
+	float FocusRadius = 150.f;
+
+	/** Further than this, what you look at is scenery, not something to share. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|SharedAttention", meta = (ClampMin = "100"))
+	float FocusMaxDistance = 1500.f;
+
+	/**
+	 * An interactable within this many degrees of your view is what you are looking at, even when
+	 * the crosshair is on the table under it.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|SharedAttention", meta = (ClampMin = "0", ClampMax = "45"))
+	float FocusSnapAngle = 8.f;
+
+	/**
+	 * Rough size of a thing to examine. Up close it fills more of the view than FocusSnapAngle, so
+	 * the margin grows to match - the same idea as the eye-contact test.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|SharedAttention", meta = (ClampMin = "1"))
+	float FocusTargetRadius = 60.f;
+
+	/** A glance away shorter than this does not reset the clock. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|SharedAttention", meta = (ClampMin = "0"))
+	float FocusBreakGrace = 0.4f;
+
 	/**
 	 * How long the leader has to stay put, by the test below, before they count as having settled
 	 * somewhere and the companion is free to go about her own business.
@@ -170,6 +200,22 @@ struct FViperCompanionEvaluatorInstanceData
 	UPROPERTY(EditAnywhere, Category = Output)
 	bool bLeaderNoticesMe = false;
 
+	/** What you are looking at: an interactable in your sights, else where your view ray lands. */
+	UPROPERTY(EditAnywhere, Category = Output)
+	FVector LeaderFocusPoint = FVector::ZeroVector;
+
+	/** The interactable you are looking at, or null for a plain point. Bind Look At's Target to it. */
+	UPROPERTY(EditAnywhere, Category = Output)
+	TObjectPtr<AActor> LeaderFocusActor = nullptr;
+
+	/** Seconds you have kept looking at the same thing (short glances away forgiven). */
+	UPROPERTY(EditAnywhere, Category = Output)
+	float TimeLeaderFocused = 0.f;
+
+	/** You have looked at something that is not her for FocusHoldTime: worth sharing. */
+	UPROPERTY(EditAnywhere, Category = Output)
+	bool bLeaderStudying = false;
+
 	/**
 	 * Seconds the leader has been staying put - within LeaderLoiterRadius of the anchor, whether
 	 * walking about in there or standing still. The cue for the companion to stop waiting on them.
@@ -232,6 +278,14 @@ struct FViperCompanionEvaluatorInstanceData
 
 	UPROPERTY()
 	bool bWroteCsvHeader = false;
+
+	/** Seconds the current focus has not been looked at, for FocusBreakGrace. */
+	UPROPERTY()
+	float FocusLostTime = 0.f;
+
+	/** LeaderFocusPoint holds something real (not the sky, not her). */
+	UPROPERTY()
+	bool bFocusValid = false;
 };
 
 /** Turns the controller memory into facts for the StateTree (no decisions here). Add it once as a global evaluator. */
@@ -545,10 +599,127 @@ struct FViperFollowLeaderTaskInstanceData
 	UPROPERTY(EditAnywhere, Category = "Parameter|Attention", meta = (EditCondition = "bFaceLeaderWhenStopped", ClampMin = "0"))
 	float FaceLeaderDistance = 700.f;
 
+	/*---------------------------- Reaction time -------------------------------*/
+
+	/**
+	 * Seconds between deciding to set off and actually setting off, drawn from a normal distribution
+	 * with this mean. A person who sees you walk away takes a beat to follow; starting on the very
+	 * frame you do is the tell of a machine. Applies to starting only: stopping and carrying on
+	 * while already walking are never delayed. 0 switches it off.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Reaction", meta = (ClampMin = "0", ClampMax = "2"))
+	float ReactionTimeMean = 0.35f;
+
+	/** Standard deviation of the reaction time. Samples are clamped to [0.43, 2] x the mean (0.15-0.7 s by default). */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Reaction", meta = (ClampMin = "0", ClampMax = "1"))
+	float ReactionTimeSpread = 0.1f;
+
+	/*----------------------------- Out of the way -----------------------------*/
+
+	/**
+	 * Half-angle of the cone ahead of the leader that counts as "where they are about to walk". A
+	 * standing spot inside it is rejected, and a companion inside it while they walk at her steps
+	 * aside. People do not stand where you are obviously heading.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|OutOfTheWay", meta = (ClampMin = "0", ClampMax = "90"))
+	float LeaderPathConeAngle = 35.f;
+
+	/** Length of that cone when choosing where to stand. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|OutOfTheWay", meta = (ClampMin = "0"))
+	float LeaderPathConeLength = 400.f;
+
+	/**
+	 * A standing spot needs at least this much free width across it (navmesh width plus her own
+	 * body). Narrower is a doorway or a gap between props, and standing in one blocks it.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|OutOfTheWay", meta = (ClampMin = "0"))
+	float MinStandWidth = 140.f;
+
+	/**
+	 * When the leader walks at her and she is in their path cone within this distance, she steps
+	 * aside to the side she is already on instead of backing up in front of them. 0 = off.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|OutOfTheWay", meta = (ClampMin = "0"))
+	float StepAsideDistance = 250.f;
+
+	/*---------------------- Side by side / single file ------------------------*/
+
+	/**
+	 * The formation adapts to the space. Strolling slowly in the open, people walk beside each other;
+	 * in a corridor they fall in behind. The free width across the leader's heading is measured a few
+	 * times a second and the slot blends towards one of the two shapes over FormationBlendTime.
+	 * Below this leader speed (and with open ground) she walks beside them.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Formation", meta = (ClampMin = "0"))
+	float SideBySideMaxLeaderSpeed = 220.f;
+
+	/** Free width across the leader's heading above which the ground counts as open. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Formation", meta = (ClampMin = "0"))
+	float SideBySideMinWidth = 400.f;
+
+	/** Slot angle off the leader's back when beside them (90 is level with their shoulder). */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Formation", meta = (ClampMin = "0", ClampMax = "90"))
+	float SideBySideAngle = 75.f;
+
+	/** Slot distance when beside them. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Formation", meta = (ClampMin = "0"))
+	float SideBySideDistance = 170.f;
+
+	/**
+	 * Free width below which it is a corridor: the slot goes straight behind (angle 0) and a little
+	 * closer, 0.85 x FormationDistance. 0 = never single file.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Formation", meta = (ClampMin = "0"))
+	float CorridorWidth = 250.f;
+
+	/** Seconds the slot takes to blend between normal, beside and single file. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Formation", meta = (ClampMin = "0"))
+	float FormationBlendTime = 1.f;
+
+	/**
+	 * While the leader strolls (moving, slower than SideBySideMaxLeaderSpeed), catching up is a
+	 * quickened step, not a sprint: pace capped at this many times her walk speed. Measured in game
+	 * without it: a leader doubling back at 150 left her 5-8 m behind and she ran at 400-680. 0 off.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Speed", meta = (ClampMin = "0"))
+	float StrollCatchUpFactor = 1.6f;
+
+	/** Further from the leader than this she may still run, stroll or not: that is being left behind. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Speed", meta = (ClampMin = "0"))
+	float StrollCatchUpMaxGap = 1100.f;
+
 	/*------------------------------ Internal ----------------------------------*/
 
 	UPROPERTY()
 	bool bMoving = false;
+
+	/** A start has been decided and is waiting out the reaction time. */
+	UPROPERTY()
+	bool bReacting = false;
+
+	UPROPERTY()
+	float ReactionCountdown = 0.f;
+
+	/** Seconds left holding the step-aside goal after the leader last walked at her. */
+	UPROPERTY()
+	float StepAsideCountdown = 0.f;
+
+	UPROPERTY()
+	FVector StepAsideGoal = FVector::ZeroVector;
+
+	/** Smoothed free width across the leader's heading, and when to measure it next. */
+	UPROPERTY()
+	float SmoothedLeaderWidth = -1.f;
+
+	UPROPERTY()
+	float WidthCheckCountdown = 0.f;
+
+	/** Formation angle and distance actually in use, blended towards the shape the space asks for. */
+	UPROPERTY()
+	float BlendedFormationAngle = -1.f;
+
+	UPROPERTY()
+	float BlendedFormationDistance = -1.f;
 
 	/** 0..1 how hard it is currently committing to the move. Ramps, never jumps. */
 	UPROPERTY()
@@ -678,21 +849,38 @@ struct FViperLookAtTaskInstanceData
 	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact")
 	bool bBreakEyeContact = true;
 
+	/**
+	 * How long each spell of eye contact lasts. Drawn from a normal distribution (MeanHoldTime,
+	 * HoldTimeSpread) and clamped to [MinHoldTime, MaxHoldTime]: measured mutual gaze mostly runs one
+	 * to two seconds with a preferred length near three, and a flat spread between the limits made
+	 * the long stares as common as the ordinary ones.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (EditCondition = "bBreakEyeContact", ClampMin = "0.1"))
-	float MinHoldTime = 1.8f;
+	float MinHoldTime = 1.2f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (EditCondition = "bBreakEyeContact", ClampMin = "0.1"))
-	float MaxHoldTime = 4.5f;
+	float MaxHoldTime = 3.5f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (EditCondition = "bBreakEyeContact", ClampMin = "0.1"))
-	float MinGlanceAwayTime = 0.5f;
+	float MeanHoldTime = 2.2f;
+
+	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (EditCondition = "bBreakEyeContact", ClampMin = "0"))
+	float HoldTimeSpread = 0.6f;
+
+	/** The look-away is brief: a moment off and straight back, not a second look at something else. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (EditCondition = "bBreakEyeContact", ClampMin = "0.1"))
+	float MinGlanceAwayTime = 0.4f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (EditCondition = "bBreakEyeContact", ClampMin = "0.1"))
-	float MaxGlanceAwayTime = 1.4f;
+	float MaxGlanceAwayTime = 1.f;
 
-	/** Degrees to the side the glance drifts while looking away. */
+	/** Most degrees to the side the glance drifts while looking away (at least 40 per cent of it). */
 	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (EditCondition = "bBreakEyeContact", ClampMin = "0", ClampMax = "90"))
-	float GlanceAwayAngle = 45.f;
+	float GlanceAwayAngle = 25.f;
+
+	/** Degrees the glance also drops. Looking away slightly down reads as thinking; level reads as distracted. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|EyeContact", meta = (EditCondition = "bBreakEyeContact", ClampMin = "0", ClampMax = "45"))
+	float GlanceDownAngle = 8.f;
 
 	/** Succeeds after this many seconds (0 = runs until the state is left). */
 	UPROPERTY(EditAnywhere, Category = Parameter, meta = (ClampMin = "0"))
@@ -833,10 +1021,41 @@ struct FViperWanderTaskInstanceData
 	UPROPERTY(EditAnywhere, Category = Parameter, meta = (ClampMin = "0"))
 	float DwellTime = 2.5f;
 
+	/**
+	 * Gaze-leading. On arriving at something to examine with the leader in sight, she looks at it,
+	 * glances at the leader, and looks back at it: the way a person points a thing out with their
+	 * eyes. Needs bLookAtDestination, since that is what owns her head here.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|GazeLead", meta = (EditCondition = "bLookAtDestination"))
+	bool bGazeLeadOnFinds = true;
+
+	/** Only when the leader is this close (and in sight). Further off nobody would catch the glance. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|GazeLead", meta = (EditCondition = "bGazeLeadOnFinds", ClampMin = "0"))
+	float GazeLeadMaxDistance = 1200.f;
+
+	/** Seconds on the find before the glance, +/-20 per cent (0.8-1.2 s by default). */
+	UPROPERTY(EditAnywhere, Category = "Parameter|GazeLead", meta = (EditCondition = "bGazeLeadOnFinds", ClampMin = "0"))
+	float GazeLeadFindLookTime = 1.f;
+
+	/** Seconds the glance at the leader lasts, +/-20 per cent (0.6-0.9 s by default). */
+	UPROPERTY(EditAnywhere, Category = "Parameter|GazeLead", meta = (EditCondition = "bGazeLeadOnFinds", ClampMin = "0"))
+	float GazeLeadLeaderLookTime = 0.75f;
+
 	/*------------------------------ Internal ----------------------------------*/
 
 	UPROPERTY()
 	bool bArrived = false;
+
+	/** This leg ended at an interactable (the FIND case), not at open ground. */
+	UPROPERTY()
+	bool bAtFind = false;
+
+	/** 0 none, 1 looking at the find, 2 glancing at the leader, 3 back on the find for good. */
+	UPROPERTY()
+	int32 GazeLeadPhase = 0;
+
+	UPROPERTY()
+	float GazeLeadCountdown = 0.f;
 
 	UPROPERTY()
 	float DwellCountdown = 0.f;

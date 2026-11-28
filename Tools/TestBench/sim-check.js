@@ -58,8 +58,9 @@ const src = html.slice(html.findIndex(l => l.trim() === "<script>") + 1,
 // The script is written for a page; expose what we want to drive from outside.
 const run = new Function(src + "\n;return { P, comp, leader, metrics, stepLeader, stepCompanion," +
   " updateLeaderAttention, resetSim, V, len, dist," +
-  " setDrive(m){ driveMode = m; }, setLook(v){ lookAtCompanion = v; }," +
-  " setMouse(x, y){ mouseWorld = (x === null) ? null : V(x, y); }, now(){ return simTime; } };");
+  " setDrive(m){ driveMode = m; }, setLook(v){ lookAtCompanion = v; }, setLookClue(v){ lookAtClue = v; }," +
+  " setMouse(x, y){ mouseWorld = (x === null) ? null : V(x, y); }, now(){ return simTime; }," +
+  " applyMap, setLeaderSpeed(v){ leaderWalkSpeed = v; } };");
 const sim = run();
 
 /**
@@ -67,6 +68,11 @@ const sim = run();
  * state she chose and when.  Standing still without looking at her is the case the lab could not
  * express before, and it is the whole point of the second area.
  */
+const OPEN_MAP = { route: [[300, 1500], [2700, 1500]], obstacles: [], props: [] };
+// Walls 60 thick at y 640 and y 980: 220 cm free between them (y 760-980), from x 200 to x 2600.
+const CORRIDOR_MAP = { route: [[300, 870], [2500, 870]],
+                       obstacles: [[200, 700, 2400, 60], [200, 980, 2400, 60]], props: [] };
+
 function scenario() {
   const DT = 1 / 120;
   const dtOf = DT;
@@ -77,6 +83,12 @@ function scenario() {
     { label: "standing still, not looking again", secs: 10, drive: "stand", look: false },
     { label: "she is far off and you keep looking", secs: 14, drive: "stand", look: true,
       before: () => { sim.comp.p.x = sim.leader.p.x + 1100; sim.comp.p.y = sim.leader.p.y + 300; } },
+
+    // Shared attention: you study the nearest clue; she should stop and look at it too.
+    { label: "you study a clue", secs: 10, drive: "stand", look: false,
+      before: () => sim.setLookClue(true) },
+    { label: "...and look away from it", secs: 4, drive: "stand", look: false,
+      before: () => sim.setLookClue(false) },
 
     // The point of the latch: your own steps inside her area are none of her business.
     { label: "standing still again, not looking", secs: 10, drive: "stand", look: false },
@@ -104,6 +116,23 @@ function scenario() {
         if (Math.floor(t / 3.5) % 2 === 0) sim.setMouse(a.x + 210, a.y + 60);
         else sim.setMouse(a.x - 140, a.y - 150);
       } },
+
+    // The human touches that need a map of their own: an open field, and a 220 cm corridor.
+    // Side by side strolling in the open, single file in the corridor, and stepping aside when
+    // you walk straight at her.
+    { label: "open field, you walk at 300", secs: 9, drive: "route", look: false,
+      before: () => { sim.applyMap(OPEN_MAP); sim.P.RoamIdleTime = 999; sim.setLeaderSpeed(300); } },
+    { label: "open field, you stroll at 150", secs: 16, drive: "route", look: false,
+      before: () => { sim.applyMap(OPEN_MAP); sim.setLeaderSpeed(150); } },
+    { label: "corridor 220 wide, you walk at 300", secs: 8, drive: "route", look: false,
+      before: () => { sim.applyMap(CORRIDOR_MAP); sim.setLeaderSpeed(300); } },
+    { label: "you walk straight at her", secs: 5, drive: "mouse", look: false, walkAt: true,
+      before: () => {
+        sim.applyMap(OPEN_MAP);
+        sim.leader.p = sim.V(600, 1500); sim.leader.yaw = 0;
+        sim.comp.p = sim.V(820, 1530); sim.comp.v = sim.V(0, 0);
+        sim.setMouse(2500, 1500);
+      } },
   ];
 
   sim.resetSim(true);
@@ -112,6 +141,16 @@ function scenario() {
     sim.setLook(phase.look);
     const home = { x: sim.leader.p.x, y: sim.leader.p.y };
     if (phase.before) phase.before();
+    // Baselines for the counters of the five human touches, taken after before(): a map change
+    // resets the sim, and the counters with it.
+    const base = {
+      react: sim.comp.reactLog.length, breaks: sim.comp.gazeBreaks, holds: sim.comp.gazeHolds.length,
+      leads: sim.comp.gazeLeads, asides: sim.comp.stepAsides,
+      cone: sim.comp.spotRejects.cone, narrow: sim.comp.spotRejects.narrow,
+    };
+    let besideTime = 0, behindTime = 0, shapeTime = 0;
+    const walkAtFrom = { x: sim.comp.p.x, y: sim.comp.p.y };
+    let walkAtDone = null;
     const seen = {};
     let moved = 0, minGap = Infinity, maxGap = 0;
     let arrivals = 0, stillTime = 0, align = 0, alignTime = 0;
@@ -154,6 +193,21 @@ function scenario() {
         align += (sim.comp.v.x * sim.leader.v.x + sim.comp.v.y * sim.leader.v.y) / (cs * ls) * dtOf;
         alignTime += dtOf;
       }
+      // Formation shape while you walk and she follows: how far off dead-behind she walks.
+      // Beside is over 55 degrees off your back, single file under 20. The first two seconds of
+      // a phase are her catching up and are left out.
+      if (sim.comp.mode === "follow" && ls > 40 && i * DT > 2) {
+        const back = Math.atan2(-sim.leader.v.y, -sim.leader.v.x);
+        const her = Math.atan2(sim.comp.p.y - sim.leader.p.y, sim.comp.p.x - sim.leader.p.x);
+        const off = Math.abs(((her - back) * 180 / Math.PI % 360 + 540) % 360 - 180);
+        if (off > 55) besideTime += DT;
+        if (off < 20) behindTime += DT;
+        shapeTime += DT;
+      }
+      // Walking at her: where she went, up to the moment you drew level with her.
+      if (phase.walkAt && !walkAtDone && sim.leader.p.x >= sim.comp.p.x) {
+        walkAtDone = { side: Math.abs(sim.comp.p.y - walkAtFrom.y), back: sim.comp.p.x - walkAtFrom.x };
+      }
       const g = sim.dist(sim.comp.p, sim.leader.p);
       minGap = Math.min(minGap, g);
       maxGap = Math.max(maxGap, g);
@@ -164,6 +218,25 @@ function scenario() {
     const extra = [];
     if (onProp || onGround) extra.push(`finds ${onProp}/ground ${onGround}`);
     if (bearings.length) extra.push(`planted ${spotPicks}x at ${bearings.join(",")} deg off behind`);
+    const reacts = sim.comp.reactLog.slice(base.react);
+    if (reacts.length) extra.push(`reacted ${reacts.length}x after ${reacts.map(r => r.toFixed(2)).join("/")}s`);
+    const holds = sim.comp.gazeHolds.slice(base.holds);
+    if (sim.comp.gazeBreaks > base.breaks) {
+      extra.push(`looked away ${sim.comp.gazeBreaks - base.breaks}x` + (holds.length ? `, holds ${holds.map(h => h.toFixed(1)).join("/")}s` : ""));
+    }
+    if (sim.comp.gazeLeads > base.leads) extra.push(`find->you->find ${sim.comp.gazeLeads - base.leads}x`);
+    const cone = sim.comp.spotRejects.cone - base.cone, narrow = sim.comp.spotRejects.narrow - base.narrow;
+    if (cone || narrow) extra.push(`spots refused: in your path ${cone}, narrow ${narrow}`);
+    if (shapeTime > 1) {
+      extra.push(`beside ${(100 * besideTime / shapeTime).toFixed(0)}% / behind ${(100 * behindTime / shapeTime).toFixed(0)}%` +
+                 ` (slot ${sim.comp.formAngle.toFixed(0)}deg at ${sim.comp.formDist.toFixed(0)})`);
+    }
+    if (phase.walkAt) {
+      extra.push(`stepped aside ${sim.comp.stepAsides - base.asides}x` + (walkAtDone
+        ? `, by the time you drew level: ${walkAtDone.side.toFixed(0)} sideways, ${walkAtDone.back.toFixed(0)} backwards`
+        : ", you never drew level"));
+      extra.push(`min gap ${minGap.toFixed(0)}`);
+    }
     console.log(`${phase.label.padEnd(36)} | ${mix.padEnd(34)} | you ${String(fromAnchor.toFixed(0)).padStart(4)} from anchor` +
       `, she walked ${String(moved.toFixed(0)).padStart(5)}, stops ${arrivals}` +
       `, stood ${stillTime.toFixed(1)}s` + (extra.length ? ", " + extra.join(", ") : ""));

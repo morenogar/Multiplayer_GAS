@@ -1,0 +1,12 @@
+Viper.Companion.Debug 1
+Viper.Companion.DebugInterval 0.5
+ViperPlayAs ai
+ViperAfter 55 ViperPilotSpeed|150
+ViperAfter 56 ViperPilotWander|2000
+ViperAfter 64 ViperPilotWander|2000
+ViperAfter 72 ViperPilotWander|2000
+ViperAfter 80 ViperPilotWander|2000
+ViperAfter 89 ViperPilotSpeed|300
+ViperAfter 90 ViperPilotWander|2000
+ViperAfter 98 ViperPilotWander|2000
+ViperAfter 106 ViperPilotGoTo|BP_Companion

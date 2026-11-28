@@ -198,6 +198,14 @@ public:
 	void ViperPilotWander(float Radius = 1200.f);
 
 	/**
+	 * Walking speed of the pilot's pawn, in cm/s. The player walks at 300, and some of the
+	 * companion's behaviour only shows at a stroll (side by side below 220), so a test has to be
+	 * able to slow the pilot down. Test tooling; not compiled into Shipping.
+	 */
+	UFUNCTION(Exec)
+	void ViperPilotSpeed(float Speed);
+
+	/**
 	 * Turns the pilot's view to something, which is what the companion reads as being looked at.
 	 * With Seconds > 0 it keeps looking (re-aiming every frame) for that long.
 	 */

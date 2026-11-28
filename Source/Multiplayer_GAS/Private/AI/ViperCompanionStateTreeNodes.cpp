@@ -338,12 +338,65 @@ namespace ViperCompanionStateTree
 	}
 
 	/**
+	 * A sample from a normal distribution (Box-Muller). Human timings - how long a gaze is held,
+	 * how long it takes to react - cluster round a typical value with the odd long or short one;
+	 * a flat random range makes the extremes as common as the middle, which reads as erratic.
+	 */
+	static float RandNormal(float Mean, float Spread)
+	{
+		const float U1 = FMath::Max(FMath::FRand(), KINDA_SMALL_NUMBER);
+		const float U2 = FMath::FRand();
+		const float Z = FMath::Sqrt(-2.f * FMath::Loge(U1)) * FMath::Cos(2.f * PI * U2);
+		return Mean + Z * Spread;
+	}
+
+	/**
+	 * Free walkable width across a point, measured along Axis with one navmesh raycast each way, each
+	 * at most MaxReach long. Navmesh is already shrunk by the agent radius, so the caller adds its
+	 * own body width back to get something comparable to the physical gap. No navmesh: unlimited.
+	 */
+	static float FreeWidthAcross(UWorld* World, const FVector& Point, const FVector& Axis, float MaxReach)
+	{
+		UNavigationSystemV1* NavSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+		const FVector Across = Axis.GetSafeNormal2D();
+		if (!NavSystem || Across.IsNearlyZero())
+		{
+			return 2.f * MaxReach;
+		}
+
+		float Width = 0.f;
+		for (const float Sign : { 1.f, -1.f })
+		{
+			FVector Hit;
+			const FVector End = Point + Across * (Sign * MaxReach);
+			Width += NavSystem->NavigationRaycast(World, Point, End, Hit) ? FVector::Dist2D(Point, Hit) : MaxReach;
+		}
+		return Width;
+	}
+
+	/** True when Point lies inside the cone ahead of the leader, within Length of them. */
+	static bool InLeaderPathCone(const FVector& LeaderLocation, const FVector& LeaderForward,
+		const FVector& Point, float HalfAngle, float Length)
+	{
+		const FVector ToPoint = FVector(Point.X - LeaderLocation.X, Point.Y - LeaderLocation.Y, 0.f);
+		const float Along = FVector::DotProduct(ToPoint, LeaderForward.GetSafeNormal2D());
+		if (Along <= 0.f || ToPoint.Size2D() > Length)
+		{
+			return false;
+		}
+		return Along >= ToPoint.Size2D() * FMath::Cos(FMath::DegreesToRadians(HalfAngle));
+	}
+
+	/**
 	 * Somewhere to stand near a leader who has stopped: a bearing off their back, rolled so she is
 	 * not forever directly behind them, at least a personal space out, on the navmesh and with
 	 * nothing between it and them. Standing with someone means being visible to them.
+	 * Not in the way, either: never in the cone ahead of them (where they will walk next) and never
+	 * somewhere narrow like a doorway, where standing still blocks the only way through.
 	 */
 	static bool PickStandingSpot(UWorld* World, const FVector& LeaderLocation, const FVector& LeaderForward,
-		float BearingSpread, float PersonalSpace, float FormationDistance, FVector& OutSpot)
+		float BearingSpread, float PersonalSpace, float FormationDistance,
+		float PathConeAngle, float PathConeLength, float MinWidth, float BodyRadius, FVector& OutSpot)
 	{
 		UNavigationSystemV1* NavSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 		const float Spread = FMath::Max(0.f, BearingSpread);
@@ -375,6 +428,25 @@ namespace ViperCompanionStateTree
 			if (PersonalSpace > 0.f && FVector::Dist2D(Candidate, LeaderLocation) < PersonalSpace)
 			{
 				continue;
+			}
+
+			// Where they are about to walk. Only reachable with a spread past 180 minus the cone,
+			// but the projection above can also slide a spot round into it.
+			if (PathConeLength > 0.f
+				&& InLeaderPathCone(LeaderLocation, LeaderForward, Candidate, PathConeAngle, PathConeLength))
+			{
+				continue;
+			}
+
+			// A doorway. Measured across the bearing from the leader, which is the axis a doorway
+			// between the two of them is narrow on.
+			if (MinWidth > 0.f)
+			{
+				const FVector Across = FVector::CrossProduct(FVector::UpVector, Candidate - LeaderLocation);
+				if (FreeWidthAcross(World, Candidate, Across, MinWidth) + 2.f * BodyRadius < MinWidth)
+				{
+					continue;
+				}
 			}
 
 			FVector ClearPoint;
@@ -528,6 +600,7 @@ namespace ViperCompanionStateTree
 		Data.bHasLineOfSightToLeader = false;
 		Data.TimeSinceLastIdleBreak = 0.f;
 		Data.bLeaderNoticesMe = false;
+		Data.bLeaderStudying = false;
 		Data.DistanceLeaderFromAnchor = 0.f;
 		// TimeLookedAt, TimeLeaderStayingPut, LeaderAnchor, bLeaderSettled and the two internals are
 		// accumulators and latches, deliberately not cleared here: they are what the tree reads to
@@ -556,6 +629,10 @@ namespace ViperCompanionStateTree
 		{
 			Data.TimeLookedAt = 0.f;
 			Data.AimLostTime = 0.f;
+			Data.TimeLeaderFocused = 0.f;
+			Data.FocusLostTime = 0.f;
+			Data.bFocusValid = false;
+			Data.LeaderFocusActor = nullptr;
 			Data.TimeLeaderStayingPut = 0.f;
 			Data.bAnchorValid = false;
 			Data.bLeaderSettled = false;
@@ -567,10 +644,10 @@ namespace ViperCompanionStateTree
 		Data.bLeaderIsMoving = Data.LeaderSpeed > Data.LeaderMovingSpeedThreshold;
 		Data.bHasLineOfSightToLeader = Controller->LineOfSightTo(LeaderPawn);
 
-		// Eye contact: the leader has to be close AND actually pointing their view at the companion.
-		if (Data.DistanceToLeader <= Data.EyeContactDistance)
-		{
-			// GetViewRotation, not GetActorEyesViewPoint. For a pawn the latter hands back the actor
+		// Where the leader is looking from and towards. Eye contact below uses it within
+		// EyeContactDistance; shared attention uses it at any range, since you can study something
+		// with her well away from you.
+		// GetViewRotation, not GetActorEyesViewPoint. For a pawn the latter hands back the actor
 			// rotation, which carries no pitch, so a leader staring at the sky still counted as looking
 			// straight at the companion. GetViewRotation is also the network-aware one: it uses the
 			// control rotation when locally controlled and the replicated view pitch otherwise, so the
@@ -593,6 +670,9 @@ namespace ViperCompanionStateTree
 
 			const FVector LeaderView = LeaderViewRotation.Vector();
 
+		// Eye contact: the leader has to be close AND actually pointing their view at the companion.
+		if (Data.DistanceToLeader <= Data.EyeContactDistance)
+		{
 			const FVector CompanionEyes = ViperCompanionStateTree::GetEyeApprox(*Pawn);
 			const FVector ToCompanion = (CompanionEyes - LeaderEyes).GetSafeNormal();
 			if (!ToCompanion.IsNearlyZero())
@@ -630,6 +710,100 @@ namespace ViperCompanionStateTree
 			}
 		}
 		Data.bLeaderNoticesMe = Data.TimeLookedAt >= Data.EyeContactHoldTime;
+
+		// Shared attention: what the leader is looking at, and for how long. Data only - whether she
+		// looks too is the tree's call (ShareAttention).
+		{
+			FVector Candidate = FVector::ZeroVector;
+			AActor* CandidateActor = nullptr;
+			bool bHasCandidate = false;
+			UWorld* World = Controller->GetWorld();
+
+			// Looking at her is eye contact, not attention on a thing.
+			if (!Data.bLeaderLooksAtMe && World)
+			{
+				// An interactable in the leader's sights wins over the raw ray: looking at the letter
+				// means the letter even when the crosshair is on the table under it.
+				// Both bodies ignored: with an over-the-shoulder camera the line from the leader's eyes
+				// can clip their own character, and her body is not what is being looked at.
+				FCollisionQueryParams Params(SCENE_QUERY_STAT(ViperLeaderFocus), false, LeaderPawn);
+				Params.AddIgnoredActor(Pawn);
+
+				TArray<AActor*> Finds;
+				ViperCompanionStateTree::GatherFinds(World, LeaderEyes, Data.FocusMaxDistance, Pawn, LeaderPawn, Finds);
+				float BestAngle = TNumericLimits<float>::Max();
+				for (AActor* Find : Finds)
+				{
+					const FVector ToFindRaw = Find->GetActorLocation() - LeaderEyes;
+					const FVector ToFind = ToFindRaw.GetSafeNormal();
+					const float Angle = FMath::RadiansToDegrees(
+						FMath::Acos(FMath::Clamp(FVector::DotProduct(LeaderView, ToFind), -1.f, 1.f)));
+					// Up close a thing fills more of the view than a fixed cone, so the margin grows.
+					const float Margin = FMath::Max(Data.FocusSnapAngle, FMath::RadiansToDegrees(
+						FMath::Atan2(Data.FocusTargetRadius, FMath::Max(1.f, ToFindRaw.Size()))));
+					if (Angle > Margin || Angle >= BestAngle)
+					{
+						continue;
+					}
+					FHitResult Blocker;
+					const bool bBlocked = World->LineTraceSingleByChannel(Blocker, LeaderEyes,
+						Find->GetActorLocation(), ECC_Visibility, Params) && Blocker.GetActor() != Find;
+					if (!bBlocked)
+					{
+						BestAngle = Angle;
+						CandidateActor = Find;
+						Candidate = Find->GetActorLocation();
+						bHasCandidate = true;
+					}
+				}
+
+				if (!CandidateActor)
+				{
+					FHitResult Hit;
+					if (World->LineTraceSingleByChannel(Hit, LeaderEyes,
+						LeaderEyes + LeaderView * Data.FocusMaxDistance, ECC_Visibility, Params))
+					{
+						Candidate = Hit.ImpactPoint;
+						bHasCandidate = true;
+					}
+				}
+			}
+
+			// Same thing: the same interactable, or a plain point that has not wandered off.
+			const bool bSameThing = bHasCandidate && Data.bFocusValid
+				&& ((CandidateActor || Data.LeaderFocusActor)
+					? CandidateActor == Data.LeaderFocusActor
+					: FVector::Dist(Candidate, Data.LeaderFocusPoint) <= Data.FocusRadius);
+
+			if (bSameThing)
+			{
+				Data.FocusLostTime = 0.f;
+				Data.TimeLeaderFocused += DeltaTime;
+			}
+			else
+			{
+				// A glance away inside the grace keeps the old focus and its clock; past it, whatever is
+				// in view now becomes the focus and the clock starts again. A thing beats a plain point at
+				// once: with an aim on the edge of a clue the two alternate frame by frame, and every
+				// point frame would otherwise restart the grace and keep the wall as the focus for good.
+				Data.FocusLostTime += DeltaTime;
+				if (!Data.bFocusValid || Data.FocusLostTime > Data.FocusBreakGrace
+					|| (CandidateActor && !Data.LeaderFocusActor))
+				{
+					Data.bFocusValid = bHasCandidate;
+					Data.LeaderFocusActor = CandidateActor;
+					Data.LeaderFocusPoint = bHasCandidate ? Candidate : FVector::ZeroVector;
+					Data.TimeLeaderFocused = 0.f;
+					Data.FocusLostTime = 0.f;
+				}
+			}
+
+			// Only a thing to examine counts. A plain point is still tracked (and logged), but staring
+			// at a wall while the camera rests is not something to share - in the first test it froze
+			// her for half a minute while the leader stood about.
+			Data.bLeaderStudying = Data.bFocusValid && Data.LeaderFocusActor != nullptr
+				&& !Data.bLeaderLooksAtMe && Data.TimeLeaderFocused >= Data.FocusHoldTime;
+		}
 
 		// Staying put, and where. The question is ground covered, not speed: the anchor is pinned
 		// where the clock started and only re-pinned when the leader leaves the loitering circle,
@@ -713,14 +887,16 @@ namespace ViperCompanionStateTree
 		{
 			UE_LOG(LogViperCompanion, Log,
 				TEXT("facts | stance=%s dist=%.0f leaderSpd=%.0f moving=%d | aim=%d err=%.1f thr=%.1f | los=%d speaking=%d sinceBreak=%.1f rnd=%.2f")
-				TEXT(" | looked=%.1f notices=%d stayingPut=%.1f fromAnchor=%.0f settled=%d"),
+				TEXT(" | looked=%.1f notices=%d stayingPut=%.1f fromAnchor=%.0f settled=%d | focus=%.1f studying=%d on=%s"),
 				Data.Stance == EViperCompanionStance::Follow ? TEXT("Follow") : TEXT("Hold"),
 				Data.DistanceToLeader, Data.LeaderSpeed, Data.bLeaderIsMoving ? 1 : 0,
 				Data.bLeaderLooksAtMe ? 1 : 0, Data.LeaderAimErrorDegrees, Data.EyeContactThresholdDegrees,
 				Data.bHasLineOfSightToLeader ? 1 : 0, Data.bIsSpeaking ? 1 : 0,
 				Data.TimeSinceLastIdleBreak, Data.RandomValue,
 				Data.TimeLookedAt, Data.bLeaderNoticesMe ? 1 : 0,
-				Data.TimeLeaderStayingPut, Data.DistanceLeaderFromAnchor, Data.bLeaderSettled ? 1 : 0);
+				Data.TimeLeaderStayingPut, Data.DistanceLeaderFromAnchor, Data.bLeaderSettled ? 1 : 0,
+				Data.TimeLeaderFocused, Data.bLeaderStudying ? 1 : 0,
+				Data.LeaderFocusActor ? *Data.LeaderFocusActor->GetName() : (Data.bFocusValid ? TEXT("point") : TEXT("-")));
 		}
 	}
 }
@@ -764,6 +940,14 @@ EStateTreeRunStatus FViperFollowLeaderTask::EnterState(FStateTreeExecutionContex
 	Data.SmoothedLeaderForward = FVector::ZeroVector;
 	Data.SmoothedSteerDirection = FVector::ZeroVector;
 	Data.CommandedSpeed = 0.f;
+	Data.bReacting = false;
+	Data.ReactionCountdown = 0.f;
+	Data.StepAsideCountdown = 0.f;
+	// Negative means "not measured yet": the first tick seeds them instead of blending in from zero.
+	Data.SmoothedLeaderWidth = -1.f;
+	Data.WidthCheckCountdown = 0.f;
+	Data.BlendedFormationAngle = -1.f;
+	Data.BlendedFormationDistance = -1.f;
 
 	// Enter already standing on the side it is actually walking on, or the first swap sweeps in from
 	// dead centre behind the leader for no reason.
@@ -909,10 +1093,56 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 
 	LeaderForward = Data.SmoothedLeaderForward;
 
+	// How much room there is across the leader's heading. A few times a second is plenty - the
+	// answer changes as fast as walls do - and it is smoothed so a doorway flicking past for one
+	// sample does not yank the slot behind them and straight back out.
+	Data.WidthCheckCountdown -= DeltaTime;
+	if (Data.WidthCheckCountdown <= 0.f)
+	{
+		Data.WidthCheckCountdown = 0.25f;
+		const FVector Across = FVector::CrossProduct(FVector::UpVector, LeaderForward);
+		const float MaxReach = FMath::Max(Data.SideBySideMinWidth, Data.CorridorWidth);
+		const float Width = ViperCompanionStateTree::FreeWidthAcross(Pawn->GetWorld(), LeaderLocation, Across, MaxReach)
+			+ 2.f * Data.Leader->GetSimpleCollisionRadius();
+		Data.SmoothedLeaderWidth = Data.SmoothedLeaderWidth < 0.f
+			? Width
+			: FMath::Lerp(Data.SmoothedLeaderWidth, Width, 0.5f);
+	}
+
+	// The shape of the formation follows the space. Strolling in the open, people walk side by side;
+	// in a corridor they fall in behind, a little closer - which is also personal distance shrinking
+	// where there is less room, for free. Anything in between keeps the ordinary slot.
+	float WantAngle = Data.FormationAngle;
+	float WantDistance = Data.FormationDistance;
+	if (Data.CorridorWidth > 0.f && Data.SmoothedLeaderWidth >= 0.f && Data.SmoothedLeaderWidth < Data.CorridorWidth)
+	{
+		WantAngle = 0.f;
+		WantDistance = Data.FormationDistance * 0.85f;
+	}
+	else if (Data.SmoothedLeaderWidth > Data.SideBySideMinWidth && LeaderSpeed > Data.KeepWalkingLeaderSpeed
+		&& LeaderSpeed < Data.SideBySideMaxLeaderSpeed)
+	{
+		WantAngle = Data.SideBySideAngle;
+		WantDistance = Data.SideBySideDistance;
+	}
+
+	if (Data.BlendedFormationAngle < 0.f || Data.FormationBlendTime <= KINDA_SMALL_NUMBER)
+	{
+		Data.BlendedFormationAngle = WantAngle;
+		Data.BlendedFormationDistance = WantDistance;
+	}
+	else
+	{
+		// Exponential, about 95 per cent of the way there after FormationBlendTime.
+		const float BlendSpeed = 3.f / Data.FormationBlendTime;
+		Data.BlendedFormationAngle = FMath::FInterpTo(Data.BlendedFormationAngle, WantAngle, DeltaTime, BlendSpeed);
+		Data.BlendedFormationDistance = FMath::FInterpTo(Data.BlendedFormationDistance, WantDistance, DeltaTime, BlendSpeed);
+	}
+
 	// The slot: off one shoulder behind the leader, pushed forward by where they are heading,
 	// so the companion cuts the corner instead of tracing the path the leader already walked.
-	const FVector SlotDirection = FRotator(0.f, Side * Data.FormationAngle, 0.f).RotateVector(-LeaderForward);
-	FVector Goal = LeaderLocation + SlotDirection * Data.FormationDistance + LeaderVelocity * Data.LeadTime;
+	const FVector SlotDirection = FRotator(0.f, Side * Data.BlendedFormationAngle, 0.f).RotateVector(-LeaderForward);
+	FVector Goal = LeaderLocation + SlotDirection * Data.BlendedFormationDistance + LeaderVelocity * Data.LeadTime;
 
 	// Standing somewhere, rather than holding a slot that hangs off the leader. Once they have been
 	// in one place for SettlePlantDelay she chooses a spot - a bearing off their back, rolled afresh
@@ -979,7 +1209,9 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 			{
 				FVector Chosen;
 				if (ViperCompanionStateTree::PickStandingSpot(Pawn->GetWorld(), LeaderLocation, LeaderForward,
-						Data.SettleBearingSpread, Data.PersonalSpaceRadius, Data.FormationDistance, Chosen))
+						Data.SettleBearingSpread, Data.PersonalSpaceRadius, Data.FormationDistance,
+						Data.LeaderPathConeAngle, Data.LeaderPathConeLength, Data.MinStandWidth,
+						Pawn->GetSimpleCollisionRadius(), Chosen))
 				{
 					SpotKeeper->SetPlantedSpot(Chosen);
 					SpotKeeper->ClearStandLook();
@@ -1029,6 +1261,66 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 			Bearing = -LeaderForward;
 		}
 		Goal = LeaderLocation + Bearing * Data.FormationDistance;
+	}
+
+	// The leader is walking at her and she is standing in their way. A person steps aside, to the
+	// side they are already on; the slot alone would have her back away in front of them, or cut
+	// across their path to reach their far shoulder. The raw velocity, not the smoothed heading:
+	// this is about where they are going this second. The aside goal is held for a moment after
+	// she leaves the cone, or she would step out, see the slot again and step straight back in.
+	bool bSteppingAside = false;
+	if (Data.StepAsideDistance > 0.f && !Data.bComeToRest)
+	{
+		const bool bWasSteppingAside = Data.StepAsideCountdown > 0.f;
+		Data.StepAsideCountdown = FMath::Max(0.f, Data.StepAsideCountdown - DeltaTime);
+
+		const FVector LeaderHeading = LeaderVelocity.GetSafeNormal2D();
+		if (LeaderSpeed > Data.KeepWalkingLeaderSpeed && !LeaderHeading.IsNearlyZero()
+			&& ViperCompanionStateTree::InLeaderPathCone(LeaderLocation, LeaderHeading, PawnLocation,
+				Data.LeaderPathConeAngle, Data.StepAsideDistance))
+		{
+			const FVector ToPawn = FVector(PawnLocation.X - LeaderLocation.X, PawnLocation.Y - LeaderLocation.Y, 0.f);
+			const float Along = FVector::DotProduct(ToPawn, LeaderHeading);
+			FVector Lateral = ToPawn - LeaderHeading * Along;
+			const float LateralNow = Lateral.Size2D();
+			// Dead centre in front of them: pick her formation side rather than freezing.
+			Lateral = LateralNow > 1.f ? Lateral / LateralNow
+				: FVector::CrossProduct(FVector::UpVector, LeaderHeading) * (Side >= 0.f ? 1.f : -1.f);
+
+			// Straight sideways from where she stands, far enough to clear their personal space.
+			const float Clearance = FMath::Max(Data.PersonalSpaceRadius, 100.f) + 30.f;
+			FVector Aside = LeaderLocation + LeaderHeading * Along + Lateral * FMath::Max(LateralNow, Clearance);
+			FVector Projected;
+			if (ViperCompanionStateTree::ProjectToNavigation(Pawn->GetWorld(), Aside, Projected))
+			{
+				Aside = Projected;
+			}
+
+			if (Data.StepAsideCountdown <= 0.f)
+			{
+				UE_CLOG(ViperCompanionStateTree::DebugLevel() > 0, LogViperCompanion, Log,
+					TEXT("follow | STEP ASIDE %.0f to the %s, you were %.0f off"),
+					FMath::Max(0.f, Clearance - LateralNow),
+					FVector::DotProduct(Lateral, FVector::CrossProduct(FVector::UpVector, LeaderHeading)) > 0.f ? TEXT("right") : TEXT("left"),
+					Along);
+			}
+
+			Data.StepAsideGoal = Aside;
+			Data.StepAsideCountdown = 0.8f;
+		}
+
+		if (Data.StepAsideCountdown > 0.f)
+		{
+			bSteppingAside = true;
+			Goal = Data.StepAsideGoal;
+		}
+		else if (bWasSteppingAside && Data.bHasPlantedSpot && SpotKeeper)
+		{
+			// A spot of her own that was in their way is no longer a good spot: she stands where she
+			// stepped to. Handed over once the step is done, not every frame of it.
+			SpotKeeper->SetPlantedSpot(Data.StepAsideGoal);
+			SpotKeeper->ClearStandLook();
+		}
 	}
 
 	// A goal snapped onto a distant patch of navmesh is one way a companion ends up sprinting half a
@@ -1088,13 +1380,22 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 		JitterBand = 0.f;
 	}
 
+	// Stepping aside is a short, deliberate move: the wide band would swallow it whole.
+	if (bSteppingAside)
+	{
+		StartBand = FMath::Min(StartBand, 40.f);
+		StopBand = FMath::Min(StopBand, 30.f);
+		JitterBand = 0.f;
+	}
+
+	const bool bWasMoving = Data.bMoving;
+	bool bWantsToStart = false;
+
 	// Hysteresis: the gap between starting and stopping, plus random slack on the stop, is what
 	// removes the start-stop stutter of a plain distance check.
 	if (!Data.bMoving && DistanceToGoal > StartBand)
 	{
-		Data.bMoving = true;
-		Data.CurrentStopDistance = StopBand + FMath::FRand() * JitterBand;
-		Data.TimeSinceRepath = Data.RepathInterval;
+		bWantsToStart = true;
 	}
 	else if (Data.bMoving && DistanceToGoal <= Data.CurrentStopDistance)
 	{
@@ -1109,7 +1410,44 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 	// Not while she is standing on a spot of her own: that is the whole point of having one.
 	if (!Data.bComeToRest && !Data.bHasPlantedSpot && LeaderSpeed > Data.KeepWalkingLeaderSpeed)
 	{
-		Data.bMoving = true;
+		if (bWasMoving)
+		{
+			Data.bMoving = true;
+		}
+		else
+		{
+			bWantsToStart = true;     // the leader has set off and she has not: that is a start
+		}
+	}
+
+	// Reaction time. A start is decided now and happens a moment later, so the leader setting off
+	// is answered the way a person answers it rather than on the same frame. Only from standing:
+	// if she still carries intent from the last move she is already underway, and nobody pauses to
+	// "react" to something they are already doing. A start that stops being wanted while she waits
+	// is simply dropped.
+	if (bWantsToStart)
+	{
+		const bool bAlreadyUnderway = Data.Intent > 0.f;
+		if (!Data.bReacting)
+		{
+			Data.bReacting = true;
+			const float Mean = Data.ReactionTimeMean;
+			Data.ReactionCountdown = (Mean <= 0.f || bAlreadyUnderway) ? 0.f
+				: FMath::Clamp(ViperCompanionStateTree::RandNormal(Mean, Data.ReactionTimeSpread), Mean * 0.43f, Mean * 2.f);
+		}
+
+		Data.ReactionCountdown -= DeltaTime;
+		if (Data.ReactionCountdown <= 0.f || bAlreadyUnderway)
+		{
+			Data.bReacting = false;
+			Data.bMoving = true;
+			Data.CurrentStopDistance = StopBand + FMath::FRand() * JitterBand;
+			Data.TimeSinceRepath = Data.RepathInterval;
+		}
+	}
+	else
+	{
+		Data.bReacting = false;
 	}
 
 	// A state that exists to come to rest never wants to move again, however far the slot drifts.
@@ -1191,9 +1529,9 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 		if (ViperCompanionStateTree::ShouldTrace(Data.TraceCountdown, DeltaTime))
 		{
 			UE_LOG(LogViperCompanion, Log,
-				TEXT("follow | PARKED intent=0 moving=%d goalDist=%.0f start=%.0f stop=%.0f rest=%d"),
+				TEXT("follow | PARKED intent=0 moving=%d goalDist=%.0f start=%.0f stop=%.0f rest=%d reacting=%d(%.2fs)"),
 				Data.bMoving ? 1 : 0, DistanceToGoal, Data.StartFollowDistance, Data.CurrentStopDistance,
-				Data.bComeToRest ? 1 : 0);
+				Data.bComeToRest ? 1 : 0, Data.bReacting ? 1 : 0, FMath::Max(0.f, Data.ReactionCountdown));
 		}
 
 		return EStateTreeRunStatus::Running;
@@ -1214,6 +1552,31 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 			&& DistanceToGoal <= Data.PaceMatchTolerance)
 		{
 			TargetSpeed = FMath::Clamp(LeaderSpeed, Data.WalkSpeed * 0.5f, Data.RunSpeed);
+
+			// Side by side needs the gap along their heading closed too. Matching their pace leaves
+			// whatever was left over when the match began - measured in the lab, a slot level with
+			// their shoulder and her two metres behind it for the whole stroll. So, only as far as
+			// the formation has turned into walking beside, the pace leans by the along-track error
+			// (1 cm/s per cm), capped so it reads as drifting up alongside rather than as a sprint.
+			const float BesideSpan = Data.SideBySideAngle - Data.FormationAngle;
+			const float BesideAlpha = BesideSpan > KINDA_SMALL_NUMBER
+				? FMath::Clamp((Data.BlendedFormationAngle - Data.FormationAngle) / BesideSpan, 0.f, 1.f) : 0.f;
+			if (BesideAlpha > 0.f)
+			{
+				const FVector ToGoal(Goal.X - PawnLocation.X, Goal.Y - PawnLocation.Y, 0.f);
+				const float AlongError = FVector::DotProduct(ToGoal, LeaderForward);
+				TargetSpeed = FMath::Clamp(TargetSpeed + BesideAlpha * FMath::Clamp(AlongError, -0.5f * LeaderSpeed, 0.6f * LeaderSpeed),
+					Data.WalkSpeed * 0.5f, Data.RunSpeed);
+			}
+		}
+
+		// Someone strolling is not someone to sprint after. While the leader strolls, catching up is a
+		// quickened step, unless she has genuinely been left behind.
+		if (Data.StrollCatchUpFactor > 0.f && LeaderSpeed > Data.KeepWalkingLeaderSpeed
+			&& LeaderSpeed < Data.SideBySideMaxLeaderSpeed
+			&& FVector::Dist2D(PawnLocation, LeaderLocation) < Data.StrollCatchUpMaxGap)
+		{
+			TargetSpeed = FMath::Min(TargetSpeed, Data.WalkSpeed * Data.StrollCatchUpFactor);
 		}
 
 		// Legs do not change pace in one frame. Without this the slot swinging is enough to flick the
@@ -1284,7 +1647,9 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 		// error does not need correcting in one stride; it washes out over the next few.
 		// Not while she is standing on a spot of her own: blending in the leader's heading with her
 		// own goal underfoot is exactly how a standing companion walks off alongside them.
-		if (!Data.bHasPlantedSpot && Data.HeadingFollowWeight > 0.f
+		// Nor while stepping aside: the leader's heading points at her then, and blending it in is
+		// exactly the backing-away-in-front-of-them that stepping aside replaces.
+		if (!Data.bHasPlantedSpot && !bSteppingAside && Data.HeadingFollowWeight > 0.f
 			&& LeaderSpeed > Data.KeepWalkingLeaderSpeed
 			&& Data.PaceMatchTolerance > 0.f && DistanceToGoal < Data.PaceMatchTolerance
 			&& !LeaderForward.IsNearlyZero() && !SteerDirection.IsNearlyZero())
@@ -1356,10 +1721,13 @@ EStateTreeRunStatus FViperFollowLeaderTask::Tick(FStateTreeExecutionContext& Con
 		{
 			const float Speed = Pawn->GetVelocity().Size2D();
 			UE_LOG(LogViperCompanion, Log,
-				TEXT("follow | mode=steer intent=%.2f spd=%.0f goalDist=%.0f gap=%.0f crowd=%d side=%s rest=%d"),
+				TEXT("follow | mode=steer intent=%.2f spd=%.0f goalDist=%.0f gap=%.0f crowd=%d side=%s rest=%d")
+				TEXT(" | slot=%.0fdeg/%.0f width=%.0f aside=%d"),
 				Data.Intent, Speed, DistanceToGoal, LeaderGap,
 				(Data.PersonalSpaceRadius > 0.f && LeaderGap < Data.PersonalSpaceRadius) ? 1 : 0,
-				Side > 0.f ? TEXT("R") : TEXT("L"), Data.bComeToRest ? 1 : 0);
+				Side > 0.f ? TEXT("R") : TEXT("L"), Data.bComeToRest ? 1 : 0,
+				Data.BlendedFormationAngle, Data.BlendedFormationDistance, Data.SmoothedLeaderWidth,
+				bSteppingAside ? 1 : 0);
 		}
 
 		return EStateTreeRunStatus::Running;
@@ -1501,6 +1869,14 @@ namespace ViperCompanionStateTree
 		Data.bBodyRotationOverridden = false;
 	}
 
+	/** One spell of eye contact: normal round MeanHoldTime, clamped to the min/max. */
+	static float SampleHoldTime(const FViperLookAtTaskInstanceData& Data)
+	{
+		const float Low = FMath::Min(Data.MinHoldTime, Data.MaxHoldTime);
+		const float High = FMath::Max(Data.MinHoldTime, Data.MaxHoldTime);
+		return FMath::Clamp(RandNormal(Data.MeanHoldTime, Data.HoldTimeSpread), Low, High);
+	}
+
 	static void ApplyGaze(FViperLookAtTaskInstanceData& Data)
 	{
 		AViperCompanionCharacter* Companion = GetCompanionCharacter(Data.AIController);
@@ -1571,7 +1947,7 @@ EStateTreeRunStatus FViperLookAtTask::EnterState(FStateTreeExecutionContext& Con
 	Data.GlanceOffsetDirection = FVector::ZeroVector;
 	Data.bBodyRotationOverridden = false;
 	// Randomised from the first moment, so two companions never blink in unison.
-	Data.PhaseCountdown = FMath::FRandRange(FMath::Min(Data.MinHoldTime, Data.MaxHoldTime), FMath::Max(Data.MinHoldTime, Data.MaxHoldTime));
+	Data.PhaseCountdown = ViperCompanionStateTree::SampleHoldTime(Data);
 
 	ViperCompanionStateTree::ApplyGaze(Data);
 
@@ -1600,14 +1976,23 @@ EStateTreeRunStatus FViperLookAtTask::Tick(FStateTreeExecutionContext& Context, 
 				FVector TargetPoint;
 				if (Companion && ViperCompanionStateTree::ResolveGazePoint(Data, TargetPoint))
 				{
+					// Small and a little low: a look just past the face, not a turn of the head to
+					// something else. A wide level glance reads as being distracted by something.
 					const float Angle = FMath::FRandRange(Data.GlanceAwayAngle * 0.4f, Data.GlanceAwayAngle) * (FMath::RandBool() ? 1.f : -1.f);
 					const FVector ToTarget = (TargetPoint - ViperCompanionStateTree::GetEyeApprox(*Companion)).GetSafeNormal();
-					Data.GlanceOffsetDirection = ToTarget.RotateAngleAxis(Angle, FVector::UpVector);
+					FVector Offset = ToTarget.RotateAngleAxis(Angle, FVector::UpVector);
+					const FVector Right = FVector::CrossProduct(FVector::UpVector, Offset).GetSafeNormal();
+					if (!Right.IsNearlyZero() && Data.GlanceDownAngle > 0.f)
+					{
+						// Positive rotation about the right axis tips the forward vector down (left-handed Z-up).
+						Offset = Offset.RotateAngleAxis(FMath::FRandRange(0.5f, 1.f) * Data.GlanceDownAngle, Right);
+					}
+					Data.GlanceOffsetDirection = Offset;
 				}
 			}
 			else
 			{
-				Data.PhaseCountdown = FMath::FRandRange(FMath::Min(Data.MinHoldTime, Data.MaxHoldTime), FMath::Max(Data.MinHoldTime, Data.MaxHoldTime));
+				Data.PhaseCountdown = ViperCompanionStateTree::SampleHoldTime(Data);
 				Data.GlanceOffsetDirection = FVector::ZeroVector;
 			}
 		}
@@ -1658,6 +2043,9 @@ EStateTreeRunStatus FViperWanderTask::EnterState(FStateTreeExecutionContext& Con
 	Data.CachedMaxWalkSpeed = 0.f;
 	Data.bArrived = false;
 	Data.DwellCountdown = 0.f;
+	Data.bAtFind = false;
+	Data.GazeLeadPhase = 0;
+	Data.GazeLeadCountdown = 0.f;
 
 	UNavigationSystemV1* NavSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(Pawn->GetWorld());
 	if (!NavSystem)
@@ -1723,6 +2111,7 @@ EStateTreeRunStatus FViperWanderTask::EnterState(FStateTreeExecutionContext& Con
 			Data.Destination = Candidate;
 			Data.LookTarget = FindLocation;
 			bFound = true;
+			Data.bAtFind = true;
 			if (CompanionController)
 			{
 				CompanionController->SetLastExamined(Find);
@@ -1850,6 +2239,35 @@ EStateTreeRunStatus FViperWanderTask::Tick(FStateTreeExecutionContext& Context, 
 	// errand; stopping to look is what makes it read as having gone to see something.
 	if (Data.bArrived)
 	{
+		// Gaze-leading: find -> leader -> find. Looking from a thing to you and back is how one
+		// person shows another something without a word; it is also what tells the player that
+		// this is something worth coming over to. Head only: the body stays on the find.
+		if (Data.GazeLeadPhase == 1 || Data.GazeLeadPhase == 2)
+		{
+			Data.GazeLeadCountdown -= DeltaTime;
+			if (Data.GazeLeadCountdown <= 0.f)
+			{
+				AViperCompanionCharacter* Companion = ViperCompanionStateTree::GetCompanionCharacter(Controller);
+				if (Data.GazeLeadPhase == 1 && Data.Leader && Companion)
+				{
+					Data.GazeLeadPhase = 2;
+					Data.GazeLeadCountdown = Data.GazeLeadLeaderLookTime * FMath::FRandRange(0.8f, 1.2f);
+					Companion->SetLookAtActor(Data.Leader, 0.9f);
+
+					UE_CLOG(ViperCompanionStateTree::DebugLevel() > 0, LogViperCompanion, Log,
+						TEXT("wander | GAZE LEAD: glancing at you for %.2fs"), Data.GazeLeadCountdown);
+				}
+				else
+				{
+					Data.GazeLeadPhase = 3;
+					if (Companion)
+					{
+						Companion->SetLookAtLocation(Data.LookTarget + FVector(0.f, 0.f, Pawn->BaseEyeHeight), 0.9f);
+					}
+				}
+			}
+		}
+
 		Data.DwellCountdown -= DeltaTime;
 		return Data.DwellCountdown <= 0.f ? EStateTreeRunStatus::Succeeded : EStateTreeRunStatus::Running;
 	}
@@ -1873,6 +2291,15 @@ EStateTreeRunStatus FViperWanderTask::Tick(FStateTreeExecutionContext& Context, 
 			if (AViperCompanionCharacter* Companion = ViperCompanionStateTree::GetCompanionCharacter(Controller))
 			{
 				Companion->SetLookAtLocation(Data.LookTarget + FVector(0.f, 0.f, Pawn->BaseEyeHeight), 0.9f);
+			}
+
+			// Something to show, and someone near enough to show it to who can see her do it.
+			const bool bLeaderNear = Data.Leader
+				&& FVector::Dist(Pawn->GetActorLocation(), Data.Leader->GetActorLocation()) <= Data.GazeLeadMaxDistance;
+			if (Data.bAtFind && Data.bGazeLeadOnFinds && bLeaderNear && Controller->LineOfSightTo(Data.Leader))
+			{
+				Data.GazeLeadPhase = 1;
+				Data.GazeLeadCountdown = Data.GazeLeadFindLookTime * FMath::FRandRange(0.8f, 1.2f);
 			}
 		}
 

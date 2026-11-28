@@ -241,6 +241,10 @@ table.cmp td.n { font-family: var(--font-data); font-variant-numeric: tabular-nu
             <input type="checkbox" id="lookat">
             <span class="name">Look at Marci</span>
           </label>
+          <label class="p bool" style="gap:6px;margin:0" for="lookclue">
+            <input type="checkbox" id="lookclue">
+            <span class="name">Look at the nearest clue</span>
+          </label>
           <select id="speed" aria-label="Simulation speed">
             <option value="0.5">0.5&times;</option>
             <option value="1" selected>1&times;</option>
@@ -397,6 +401,47 @@ const GROUPS = [
       h:"How long you have to have been in one place before she chooses somewhere to stand rather than just stopping. Without it every two-second pause on a walk has her reposition, which reads as fidgeting." },
     { k:"SettleBearingSpread", t:"Plants herself up to", min:0, max:150, step:5, v:105, u:"deg off behind",
       h:"Once you have stopped somewhere she picks a spot and stays at it. 0 is always dead behind you, which is where she always ended up; bigger lets her stand off to one side or the other. Rolled afresh each time you settle somewhere new." },
+    { k:"SideBySideMaxLeaderSpeed", t:"Walks beside you below", min:0, max:600, step:10, v:220, u:"cm/s",
+      h:"Strolling slowly in the open, people walk side by side. Faster than this (or with walls close) she keeps the ordinary slot." },
+    { k:"SideBySideMinWidth", t:"...when the open width is over", min:100, max:1200, step:25, v:400, u:"cm",
+      h:"Free width across your heading, measured a few times a second and smoothed." },
+    { k:"SideBySideAngle", t:"Beside you means", min:0, max:90, step:1, v:75, u:"° off behind" },
+    { k:"SideBySideDistance", t:"...at", min:80, max:400, step:5, v:170, u:"cm" },
+    { k:"CorridorWidth", t:"Single file below", min:0, max:600, step:10, v:250, u:"cm",
+      h:"Narrower than this across your heading and she falls in straight behind you, a little closer (0.85 x formation distance). 0 never." },
+    { k:"FormationBlendTime", t:"Changes shape over", min:0, max:4, step:0.1, v:1, u:"s" },
+  ]},
+  { name: "Manners", open: true, items: [
+    { k:"ReactionTimeMean", t:"Reacts to you setting off after", min:0, max:1.5, step:0.05, v:0.35, u:"s",
+      h:"Typical delay between deciding to start walking and starting, drawn from a bell curve. Only from standing: never when stopping, never when already walking. 0 is instant, which reads as a machine." },
+    { k:"ReactionTimeSpread", t:"...give or take", min:0, max:0.5, step:0.01, v:0.1, u:"s",
+      h:"Standard deviation. Clamped to 0.43-2 x the mean (0.15-0.7 s by default)." },
+    { k:"LeaderPathConeAngle", t:"Your path is a cone of", min:0, max:90, step:1, v:35, u:"° each side",
+      h:"Ahead of you, where you are about to walk. She never picks a standing spot inside it, and steps aside when you walk at her inside it." },
+    { k:"LeaderPathConeLength", t:"...reaching", min:0, max:1000, step:25, v:400, u:"cm",
+      h:"How far ahead of you the cone counts when she chooses where to stand." },
+    { k:"MinStandWidth", t:"Never stands somewhere narrower than", min:0, max:400, step:10, v:140, u:"cm",
+      h:"Free width across a standing spot. Narrower is a doorway, and standing in one blocks it." },
+    { k:"StepAsideDistance", t:"Steps aside when you walk at her within", min:0, max:600, step:10, v:250, u:"cm",
+      h:"Sideways, to the side she is already on, rather than backing up in front of you. 0 off." },
+  ]},
+  // Parameters of the Look At and Wander tasks. They live in ST_Companion like the tree's own
+  // thresholds: ViperTune only reaches the follow task, so these stay out of the export (tree:true).
+  { name: "Gaze (Look At / Wander tasks)", open: false, items: [
+    { k:"MinHoldTime", t:"Eye contact held at least", min:0.1, max:6, step:0.1, v:1.2, u:"s", tree:true },
+    { k:"MaxHoldTime", t:"...at most", min:0.1, max:8, step:0.1, v:3.5, u:"s", tree:true },
+    { k:"MeanHoldTime", t:"...typically", min:0.1, max:6, step:0.1, v:2.2, u:"s", tree:true,
+      h:"Each spell of eye contact is drawn from a bell curve round this, clamped to the two limits above. Measured mutual gaze mostly lasts one to two seconds." },
+    { k:"HoldTimeSpread", t:"...give or take", min:0, max:2, step:0.05, v:0.6, u:"s", tree:true },
+    { k:"MinGlanceAwayTime", t:"Looks away for at least", min:0.1, max:3, step:0.05, v:0.4, u:"s", tree:true },
+    { k:"MaxGlanceAwayTime", t:"...at most", min:0.1, max:3, step:0.05, v:1, u:"s", tree:true },
+    { k:"GlanceAwayAngle", t:"...by up to", min:0, max:90, step:1, v:25, u:"°", tree:true,
+      h:"At least 40 per cent of this. Small: a look just past your face, not at something else." },
+    { k:"bGazeLeadOnFinds", t:"Points out what she finds with her eyes", b:true, v:true, tree:true,
+      h:"At a find, with you in sight: looks at it, glances at you, looks back at it." },
+    { k:"GazeLeadMaxDistance", t:"...when you are within", min:0, max:3000, step:50, v:1200, u:"cm", tree:true },
+    { k:"GazeLeadFindLookTime", t:"...after looking at it for", min:0, max:3, step:0.05, v:1, u:"s ±20%", tree:true },
+    { k:"GazeLeadLeaderLookTime", t:"...glancing at you for", min:0, max:3, step:0.05, v:0.75, u:"s ±20%", tree:true },
   ]},
   { name: "Start and stop", open: true, items: [
     { k:"StartFollowDistance", t:"Start walking at", min:100, max:900, step:10, v:320, u:"cm",
@@ -457,6 +502,10 @@ const GROUPS = [
       h:"Distance at which it commits to the run speed." },
     { k:"LeaderSpeedInfluence", t:"Your pace pulls it", min:0, max:1, step:0.05, v:0.6, u:"",
       h:"0 solves for distance alone." },
+    { k:"StrollCatchUpFactor", t:"Catching up a stroller, at most x walk", min:0, max:4, step:0.1, v:1.6, u:"",
+      h:"While you stroll (moving, slower than the side-by-side speed), she catches up with a quickened step, not a sprint. 0 off." },
+    { k:"StrollCatchUpMaxGap", t:"...unless further than", min:0, max:3000, step:50, v:1100, u:"cm",
+      h:"Left further behind than this she may still run." },
     { k:"PaceMatchTolerance", t:"Just match pace within", min:0, max:600, step:10, v:260, u:"cm",
       h:"Once it is roughly in place and you are walking, the honest answer to how fast is as fast as you. 0 turns it back into a servo chasing a setpoint." },
     { k:"SpeedChangeRate", t:"Pace may change by", min:0, max:2000, step:25, v:450, u:"cm/s²",
@@ -512,6 +561,18 @@ const GROUPS = [
       h:"Keep looking at her from a distance and she walks over. 0 off." },
     { k:"SummonDistance", t:"...and she is further than", min:0, max:1500, step:50, v:500, u:"cm",
       h:"Closer than this a long look just means she stops and gives you her attention where she is." },
+    { k:"FocusHoldTime", t:"Looks where you look after", min:0, max:6, step:0.1, v:1.5, u:"s", tree:true,
+      h:"ShareAttention: keep looking at the same thing (not at her) for this long, standing still, and she stops and looks at it too. Evaluator parameter, so it lives in the asset." },
+    { k:"FocusRadius", t:"...the same thing means within", min:10, max:600, step:10, v:150, u:"cm", tree:true,
+      h:"How far the point you look at may drift and still count as the same thing." },
+    { k:"FocusMaxDistance", t:"...and no further than", min:100, max:4000, step:50, v:1500, u:"cm", tree:true,
+      h:"Further than this, what you look at is scenery, not something to share." },
+    { k:"FocusSnapAngle", t:"A clue this close to your aim counts", min:0, max:45, step:1, v:8, u:"deg", tree:true,
+      h:"A thing to examine within this many degrees of where you look is what you are looking at, even if your aim is just beside it." },
+    { k:"FocusBreakGrace", t:"Forgives looking away from it for", min:0, max:3, step:0.1, v:0.4, u:"s", tree:true,
+      h:"A glance away shorter than this does not reset the clock." },
+    { k:"FocusTargetRadius", t:"A clue counts as this big", min:1, max:300, step:5, v:60, u:"cm", tree:true,
+      h:"Up close a clue fills more of your view than the angle above, so the margin grows to match. Only things to examine count for shared attention: a wall does not." },
     { k:"SummonArriveDistance", t:"Coming over ends at", min:100, max:800, step:10, v:300, u:"cm", tree:true,
       h:"ComeOver hands over to EyeContact once she is this close." },
     { k:"bFaceLeaderWhenStopped", t:"Turn to face you when stopped", b:true, v:true,
@@ -926,6 +987,28 @@ function furthestClear(from, to) {
   return { clear: true, point: to, dist: dist(from, to) };
 }
 
+/** Nothing solid on the straight line between two points (a sight line, not a walkable one). */
+function sightClear(a, b) {
+  const steps = Math.max(1, Math.ceil(dist(a, b) / 25));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (insideObstacle(V(lerp(a.x, b.x, t), lerp(a.y, b.y, t)), 0)) return false;
+  }
+  return true;
+}
+
+/** Where a view ray from p along yaw stops: the first wall, the world's edge, or its full length. */
+function viewRayHit(p, yaw, maxDist) {
+  const dir = rot(V(1, 0), yaw);
+  let last = p;
+  for (let d = 25; d <= maxDist; d += 25) {
+    const q = add(p, mul(dir, d));
+    if (insideObstacle(q, 0) || q.x < WORLD.x0 || q.x > WORLD.x1 || q.y < WORLD.y0 || q.y > WORLD.y1) return last;
+    last = q;
+  }
+  return null;   // nothing within reach: looking at the sky, in the engine's terms
+}
+
 // Both of them are a circle of this radius, near enough the engine's default character capsule.
 const BODY_RADIUS = 45;
 
@@ -1002,6 +1085,45 @@ function placeOk(p) {
   return true;
 }
 
+/** RandNormal in the C++: a bell curve, because human timings cluster round a typical value. */
+function randNormal(mean, spread) {
+  const u1 = Math.max(Math.random(), 1e-6), u2 = Math.random();
+  return mean + Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * spread;
+}
+
+/** SampleHoldTime: one spell of eye contact, a bell curve clamped to the min and max. */
+function sampleHoldTime() {
+  return clamp(randNormal(P.MeanHoldTime, P.HoldTimeSpread),
+               Math.min(P.MinHoldTime, P.MaxHoldTime), Math.max(P.MinHoldTime, P.MaxHoldTime));
+}
+
+/**
+ * FreeWidthAcross: free width across a point along an axis, each side at most maxReach. The engine
+ * casts on the navmesh and adds the body back; here the obstacles are the walls themselves.
+ */
+function freeWidthAcross(p, axis, maxReach) {
+  const across = norm(axis);
+  if (len(across) < 1e-6) return 2 * maxReach;
+  let width = 0;
+  for (const sign of [1, -1]) {
+    let reach = maxReach;
+    for (let d = 10; d <= maxReach; d += 10) {
+      const q = add(p, mul(across, sign * d));
+      if (insideObstacle(q, 0) || q.x < WORLD.x0 || q.x > WORLD.x1 || q.y < WORLD.y0 || q.y > WORLD.y1) { reach = d - 10; break; }
+    }
+    width += reach;
+  }
+  return width;
+}
+
+/** InLeaderPathCone: inside the cone ahead of you, within length. */
+function inLeaderPathCone(fwd, p, halfAngle, length) {
+  const to = sub(p, leader.p), d = len(to);
+  const along = to.x * fwd.x + to.y * fwd.y;
+  if (along <= 0 || d > length) return false;
+  return along >= d * Math.cos(halfAngle * Math.PI / 180);
+}
+
 /**
  * How far one could keep walking from here in the most open direction, and which way that is.
  * This is the difference between standing somewhere and standing somewhere facing a wall: the
@@ -1059,7 +1181,7 @@ function pickRoamPoint(centre = leader.anchor, radius = P.RoamRadius, leash = In
       if (!placeOk(p)) continue;
       if (dist(p, comp.p) < P.RoamMinStep && finds.length > 1) continue;
       comp.lastProp = o;
-      return { p, face: yawOf(sub(o, p)) };
+      return { p, face: yawOf(sub(o, p)), prop: o };   // prop: the FIND case, for gaze-leading
     }
   }
 
@@ -1098,6 +1220,14 @@ function pickSettleSpot(fwd) {
                            lerp(P.FormationDistance * 0.7, P.FormationDistance, Math.random()));
     const p = add(leader.p, mul(rot(mul(fwd, -1), side * off), reach));
     if (!placeOk(p)) continue;
+    // Not in your way: not where you are about to walk, and not in a doorway.
+    if (P.LeaderPathConeLength > 0 && inLeaderPathCone(fwd, p, P.LeaderPathConeAngle, P.LeaderPathConeLength)) {
+      comp.spotRejects.cone++; continue;
+    }
+    if (P.MinStandWidth > 0) {
+      const b = sub(p, leader.p);
+      if (freeWidthAcross(p, V(-b.y, b.x), P.MinStandWidth) < P.MinStandWidth) { comp.spotRejects.narrow++; continue; }
+    }
     if (!furthestClear(comp.p, p).clear) continue;
     return p;
   }
@@ -1428,14 +1558,25 @@ const comp = {
   sinceBreak: 0,    // TimeSinceLastIdleBreak: reset by IdleBreak, EyeContact and every wander
   rnd: 0.5,         // RandomValue, rerolled every 2 s
   rndCountdown: 0,
+  // LeaderFocusPoint / LeaderFocusActor / TimeLeaderFocused: what you are looking at, and for how long
+  focus: { p: null, prop: null, time: 0, lost: 0, valid: false },
   roamTarget: null,   // { p, face } - where she is going and the way she will look there
   roamDwell: 0,
   roamFace: null,     // the yaw to hold while she stands looking at what she walked to
   lastProp: null,     // the find she has just examined, so she does not examine it twice over
   spot: null,         // where she has planted herself while you are stopped somewhere
   standFace: null,    // the yaw she holds while standing about, chosen once per stop
+  // The five human touches. Counters are for sim-check to read; the C++ keeps none of them.
+  reacting: false, reactLeft: 0, reactLog: [],          // reaction time before setting off
+  asideLeft: 0, asideGoal: null, stepAsides: 0,         // stepping out of your path
+  spotRejects: { cone: 0, narrow: 0 },                  // standing spots refused as in the way
+  leaderWidth: -1, widthCheck: 0, formAngle: -1, formDist: -1,   // formation shape from the space
+  gaze: { away: false, left: 0, off: 0 }, gazeHolds: [], gazeBreaks: 0,   // eye contact rhythm
+  gazeLead: null, gazeLeads: 0,                         // find -> you -> find
 };
+let leaderWalkSpeed = 300;   // the player's own walk speed; sim-check slows it to test side by side
 let lookAtCompanion = false;
+let lookAtClue = false;
 let running = true, simTime = 0, driveMode = "route", timeScale = 1;
 let mouseWorld = null;
 let clickTarget = null;    // where the leader was last told to walk to, in Click mode
@@ -1498,8 +1639,15 @@ function resetSim(keepTrace) {
   comp.mode = "follow"; comp.lookedAt = 0; comp.lostLook = 0;
   comp.roaming = false; comp.stateTime = 0; comp.stateLen = 0; comp.stateDone = false;
   comp.sinceBreak = 0; comp.rnd = 0.5; comp.rndCountdown = 0;
+  comp.focus = { p: null, prop: null, time: 0, lost: 0, valid: false };
   comp.roamTarget = null; comp.roamDwell = 0;
   comp.roamFace = null; comp.lastProp = null; comp.spot = null; comp.standFace = null;
+  comp.reacting = false; comp.reactLeft = 0; comp.reactLog = [];
+  comp.asideLeft = 0; comp.asideGoal = null; comp.stepAsides = 0;
+  comp.spotRejects = { cone: 0, narrow: 0 };
+  comp.leaderWidth = -1; comp.widthCheck = 0; comp.formAngle = -1; comp.formDist = -1;
+  comp.gaze = { away: false, left: 0, off: 0 }; comp.gazeHolds = []; comp.gazeBreaks = 0;
+  comp.gazeLead = null; comp.gazeLeads = 0;
   leader.path = null; comp.path = null;
   aiGoal = null; aiVisited = []; aiDwell = 0;
   simTime = 0; trail.leader.length = 0; trail.comp.length = 0; series.length = 0;
@@ -1540,8 +1688,14 @@ function updateLeaderAttention(dt) {
     leader.loiterTime += dt;
   }
 
+  // Studying something: the nearest thing to examine, which is what you test shared attention with.
+  let clue = null;
+  if (lookAtClue) {
+    for (const o of PROPS) if (!clue || dist(o, leader.p) < dist(clue, leader.p)) clue = o;
+  }
   const want = lookAtCompanion
     ? yawOf(sub(comp.p, leader.p))              // deliberately looking at her
+    : clue ? yawOf(sub(clue, leader.p))         // studying a clue
     : (driveMode === "stand" ? leader.standYaw  // sweeping the horizon
        : (moving ? leader.yaw                   // looking where they walk
           : leader.lookYaw));                   // standing: keep the last heading
@@ -1606,7 +1760,7 @@ function stepLeader(dt) {
   // click-to-move character and is also the only way a route survives a cube dropped across it.
   const leg = steerAlongPath(leader, goal, dt);
   const want = dist(leader.p, goal) > 40 ? norm(sub(leg, leader.p)) : V(0, 0);
-  const target = mul(want, 300);                 // the player's own walk speed
+  const target = mul(want, leaderWalkSpeed);     // the player's own walk speed
   const accel = 1400;
   const d = sub(target, leader.v), dl = len(d);
   leader.v = dl <= accel * dt ? target : add(leader.v, mul(norm(d), accel * dt));
@@ -1627,7 +1781,12 @@ function stepLeader(dt) {
 function enterState(s) {
   comp.mode = s; comp.stateTime = 0; comp.stateDone = false;
   comp.roamTarget = null; comp.roamDwell = 0; comp.roamFace = null;
-  if (s === "rest") {
+  comp.gazeLead = null;
+  // The Look At task's EnterState: the first spell of eye contact is already a random length.
+  comp.gaze = { away: false, left: sampleHoldTime(), off: 0 };
+  if (s === "rest") comp.gazeHolds.push(comp.gaze.left);
+  if (s === "rest" || s === "share") {
+    // ShareAttention is a copy of EyeContact, idle-break task included.
     comp.stateLen = lerp(3, 6, Math.random());
     comp.sinceBreak = 0;
   } else if (s === "idle") {
@@ -1665,6 +1824,40 @@ function stepCompanion(dt) {
   const noticed = comp.lookedAt >= P.EyeContactHoldTime;          // bLeaderNoticesMe
   const leaderMoving = leaderSpeed > P.KeepWalkingLeaderSpeed;      // bLeaderIsMoving (20 cm/s)
 
+  /* ------------------ shared attention: what you are looking at ---------------------- */
+  // The evaluator's LeaderFocus*: a thing to examine near your aim wins over the raw ray; else the
+  // ray stops at the first wall. Looking at her is eye contact, not attention on a thing.
+  {
+    let cand = null, candProp = null;
+    if (!aimedAtNow) {
+      let best = Infinity;
+      for (const o of PROPS) {
+        const d = dist(leader.p, o);
+        if (d < 1 || d > P.FocusMaxDistance) continue;
+        const ang = Math.abs(angleDelta(leader.lookYaw, yawOf(sub(o, leader.p))));
+        // Up close a thing fills more of the view than a fixed cone, so the margin grows.
+        const margin = Math.max(P.FocusSnapAngle, Math.atan2(P.FocusTargetRadius, d) * 180 / Math.PI);
+        if (ang <= margin && ang < best && sightClear(leader.p, o)) { best = ang; cand = V(o.x, o.y); candProp = o; }
+      }
+      if (!candProp) cand = viewRayHit(leader.p, leader.lookYaw, P.FocusMaxDistance);
+    }
+    const f = comp.focus;
+    const same = cand && f.valid
+      && ((candProp || f.prop) ? candProp === f.prop : dist(cand, f.p) <= P.FocusRadius);
+    if (same) {
+      f.lost = 0; f.time += dt;
+    } else {
+      f.lost += dt;
+      // A thing beats a plain point at once (an aim on the edge of a clue alternates between the two).
+      if (!f.valid || f.lost > P.FocusBreakGrace || (candProp && !f.prop)) {
+        f.valid = !!cand; f.p = cand; f.prop = candProp; f.time = 0; f.lost = 0;
+      }
+    }
+  }
+  // bLeaderStudying: only a thing to examine counts. Staring at a wall while the camera rests is
+  // tracked (the dotted line still shows it) but is not something to share.
+  const studying = comp.focus.valid && !!comp.focus.prop && !aimedAtNow && comp.focus.time >= P.FocusHoldTime;
+
   /* ------------------------- the evaluator's other facts ------------------------------ */
   // bLeaderSettled: a fact about you, not about her. Getting it takes you staying put; keeping it
   // only takes you staying inside the area. Looking at her does not clear it - in the game the
@@ -1699,19 +1892,21 @@ function stepCompanion(dt) {
     // EyeContact at any distance: you look and stand still, she stops wherever she is and turns
     // to you. Walking over is ComeOver's job, after a long look - never WalkWithYou's run.
     rest:     () => noticed && !leaderMoving,                                     // EyeContact
+    share:    () => studying && !noticed && !leaderMoving,                        // ShareAttention
     roam:     () => P.RoamRadius > 0 && settled && !noticed,                     // RoamArea
     wander:   () => P.WanderOffAfter > 0 && !leaderMoving && comp.sinceBreak > P.WanderOffAfter
                     && comp.rnd < P.WanderOffChance,                               // WanderOff
     idle:     () => P.IdleBreakAfter > 0 && !leaderMoving && gap < P.IdleBreakMaxDistance
                     && comp.sinceBreak > P.IdleBreakAfter,                          // IdleBreak
   };
-  const select = () => ["approach", "rest", "roam", "wander", "idle"].find(s => enter[s]()) || "follow";
+  const select = () => ["approach", "rest", "share", "roam", "wander", "idle"].find(s => enter[s]()) || "follow";
 
   let giveWay = comp.stateDone;   // OnStateCompleted -> Follow
   switch (comp.mode) {
     case "approach": giveWay = giveWay || !noticed || gap < P.SummonArriveDistance; break;
     case "rest":     giveWay = giveWay || !noticed || enter.approach(); break;
-    case "roam":     giveWay = giveWay || !settled || noticed; break;
+    case "share":    giveWay = giveWay || !studying || noticed || leaderMoving; break;
+    case "roam":     giveWay = giveWay || !settled || noticed || studying; break;
     case "wander":   giveWay = giveWay || gap > P.WanderOffGiveUp; break;
     case "idle":     giveWay = giveWay || leaderMoving; break;
     default:
@@ -1719,6 +1914,7 @@ function stepCompanion(dt) {
       // so she only wanders off after another state has finished - as in the game.
       giveWay = enter.approach() || enter.roam()
                 || (noticed && !leaderMoving)
+                || enter.share()
                 || (!leaderMoving && comp.sinceBreak > P.IdleBreakFromWalkAfter && gap < P.IdleBreakMaxDistance);
   }
   if (giveWay) {
@@ -1730,11 +1926,11 @@ function stepCompanion(dt) {
   const comeToRest = comp.mode === "rest";
   const strolling = comp.mode === "roam" || comp.mode === "wander";   // the Wander task
   // IdleBreak: a soft stop and a look about. EyeContact: come to rest facing you.
-  const standStill = comeToRest || comp.mode === "idle";
+  const standStill = comeToRest || comp.mode === "idle" || comp.mode === "share";
 
   // The tasks that finish on their own: the idle break's timer (in IdleBreak, and the one inside
   // EyeContact), and a wander leg that has gone on too long (MaxWanderTime 12 s).
-  if ((comp.mode === "rest" || comp.mode === "idle") && comp.stateTime >= comp.stateLen) comp.stateDone = true;
+  if ((comp.mode === "rest" || comp.mode === "idle" || comp.mode === "share") && comp.stateTime >= comp.stateLen) comp.stateDone = true;
   if (strolling && comp.stateTime >= 12) comp.stateDone = true;
 
   // Coming to rest is an easing-off, not a walk, so it never starts moving - which freezes a
@@ -1756,8 +1952,34 @@ function stepCompanion(dt) {
   else comp.smoothFwd = fwd;
   fwd = comp.smoothFwd;
 
-  const slotDir = rot(mul(fwd, -1), comp.side * P.FormationAngle);
-  let goal = add(add(leader.p, mul(slotDir, P.FormationDistance)), mul(leader.v, P.LeadTime));
+  // How much room there is across your heading, a few times a second and smoothed, so a doorway
+  // flicking past for one sample does not yank the slot behind you and straight back out.
+  comp.widthCheck -= dt;
+  if (comp.widthCheck <= 0) {
+    comp.widthCheck = 0.25;
+    const w = freeWidthAcross(leader.p, V(-fwd.y, fwd.x), Math.max(P.SideBySideMinWidth, P.CorridorWidth));
+    comp.leaderWidth = comp.leaderWidth < 0 ? w : lerp(comp.leaderWidth, w, 0.5);
+  }
+  // The shape follows the space: side by side strolling in the open, single file in a corridor
+  // (and a little closer, which is personal distance shrinking with the room), else the slot.
+  let wantAngle = P.FormationAngle, wantDist = P.FormationDistance;
+  if (P.CorridorWidth > 0 && comp.leaderWidth >= 0 && comp.leaderWidth < P.CorridorWidth) {
+    wantAngle = 0; wantDist = P.FormationDistance * 0.85;
+  } else if (comp.leaderWidth > P.SideBySideMinWidth && leaderSpeed > P.KeepWalkingLeaderSpeed
+             && leaderSpeed < P.SideBySideMaxLeaderSpeed) {
+    wantAngle = P.SideBySideAngle; wantDist = P.SideBySideDistance;
+  }
+  if (comp.formAngle < 0 || P.FormationBlendTime <= 1e-4) {
+    comp.formAngle = wantAngle; comp.formDist = wantDist;
+  } else {
+    // FMath::FInterpTo at 3 / blend time: about 95 per cent of the way there after it.
+    const a = clamp(dt * 3 / P.FormationBlendTime, 0, 1);
+    comp.formAngle = lerp(comp.formAngle, wantAngle, a);
+    comp.formDist = lerp(comp.formDist, wantDist, a);
+  }
+
+  const slotDir = rot(mul(fwd, -1), comp.side * comp.formAngle);
+  let goal = add(add(leader.p, mul(slotDir, comp.formDist)), mul(leader.v, P.LeadTime));
 
   let bearing = norm(sub(comp.p, leader.p));
   if (len(bearing) < 1e-6) bearing = mul(fwd, -1);
@@ -1803,6 +2025,19 @@ function stepCompanion(dt) {
       comp.roamDwell -= dt;
       if (comp.roamDwell <= 0) comp.stateDone = true;
       goal = V(comp.p.x, comp.p.y);
+      // Gaze-leading (the Wander task): find -> you -> find. Head only; the body stays on the find.
+      const gl = comp.gazeLead;
+      if (gl && (gl.phase === 1 || gl.phase === 2)) {
+        gl.left -= dt;
+        if (gl.left <= 0) {
+          if (gl.phase === 1) {
+            gl.phase = 2; gl.left = P.GazeLeadLeaderLookTime * lerp(0.8, 1.2, Math.random());
+            comp.gazeLeads++;
+          } else {
+            gl.phase = 3;
+          }
+        }
+      }
     } else if (comp.roamFace !== null) {
       goal = V(comp.p.x, comp.p.y);   // finished: waiting for the re-selection
     } else {
@@ -1817,13 +2052,18 @@ function stepCompanion(dt) {
       } else if (dist(comp.p, comp.roamTarget.p) < 55) {
         comp.roamDwell = P.RoamDwellTime;
         comp.roamFace = comp.roamTarget.face;   // stand and look at what she came for
+        // Something to show, and you near enough and in sight to be shown it.
+        if (comp.roamTarget.prop && P.bGazeLeadOnFinds && P.RoamDwellTime > 0
+            && dist(comp.p, leader.p) <= P.GazeLeadMaxDistance && sightClear(comp.p, leader.p)) {
+          comp.gazeLead = { phase: 1, left: P.GazeLeadFindLookTime * lerp(0.8, 1.2, Math.random()) };
+        }
         comp.roamTarget = null;
         goal = V(comp.p.x, comp.p.y);
       } else {
         goal = comp.roamTarget.p;
       }
     }
-  } else if (comp.mode === "idle") {
+  } else if (comp.mode === "idle" || comp.mode === "share") {
     goal = V(comp.p.x, comp.p.y);
   } else if (comeToRest) {
     goal = add(leader.p, mul(bearing, P.ConversationDistance));
@@ -1831,6 +2071,35 @@ function stepCompanion(dt) {
     goal = comp.spot;
   } else if (P.bHoldBearingWhileLeaderStands && leaderSpeed <= P.KeepWalkingLeaderSpeed) {
     goal = add(leader.p, mul(bearing, P.FormationDistance));
+  }
+
+  // You are walking at her and she is standing in your way: she steps aside, to the side she is
+  // already on, rather than backing up in front of you or cutting across to your far shoulder. The
+  // aside goal is held a moment after she leaves the cone, or she would step straight back in.
+  let steppingAside = false;
+  if (comp.mode === "follow" && P.StepAsideDistance > 0) {
+    const wasAside = comp.asideLeft > 0;
+    comp.asideLeft = Math.max(0, comp.asideLeft - dt);
+    const heading = norm(leader.v);
+    if (leaderSpeed > P.KeepWalkingLeaderSpeed && len(heading) > 1e-6
+        && inLeaderPathCone(heading, comp.p, P.LeaderPathConeAngle, P.StepAsideDistance)) {
+      const to = sub(comp.p, leader.p);
+      const along = to.x * heading.x + to.y * heading.y;
+      let lat = sub(to, mul(heading, along));
+      const latNow = len(lat);
+      lat = latNow > 1 ? mul(lat, 1 / latNow) : mul(V(-heading.y, heading.x), comp.side >= 0 ? 1 : -1);
+      const clearance = Math.max(P.PersonalSpaceRadius, 100) + 30;
+      if (comp.asideLeft <= 0) comp.stepAsides++;
+      comp.asideGoal = add(add(leader.p, mul(heading, along)), mul(lat, Math.max(latNow, clearance)));
+      comp.asideLeft = 0.8;
+    }
+    if (comp.asideLeft > 0 && comp.asideGoal) {
+      steppingAside = true;
+      goal = comp.asideGoal;
+    } else if (wasAside && comp.spot && comp.asideGoal) {
+      // A spot of her own that was in your way is no longer a good spot: she stands where she stepped to.
+      comp.spot = comp.asideGoal;
+    }
   }
 
   const goalDist = dist(comp.p, goal);
@@ -1854,17 +2123,44 @@ function stepCompanion(dt) {
   // A planted spot is a place, not a slot: the wide band that keeps the follow from stuttering
   // would leave her standing wherever the walk ended and the chosen bearing would never show.
   else if (comp.spot) { startBand = 90; stopBand = 55; jitterBand = 0; }
+  // Stepping aside is a short, deliberate move: the wide band would swallow it whole.
+  if (steppingAside) { startBand = Math.min(startBand, 40); stopBand = Math.min(stopBand, 30); jitterBand = 0; }
 
+  const wasMoving = comp.moving;
+  let wantStart = false;
   if (!comp.moving && goalDist > startBand) {
-    comp.moving = true;
-    comp.stop = stopBand + Math.random() * jitterBand;
+    wantStart = true;
   } else if (comp.moving && goalDist <= comp.stop) {
     comp.moving = false;
   }
   // Only following keeps you walking because the leader is walking. Roaming and coming over
   // aim at a spot of their own, and forcing them to move the moment you set off is what made her
   // shadow your steps instead of minding her own business.
-  if (comp.mode === "follow" && !comp.spot && leaderSpeed > P.KeepWalkingLeaderSpeed) comp.moving = true;
+  if (comp.mode === "follow" && !comp.spot && leaderSpeed > P.KeepWalkingLeaderSpeed) {
+    if (wasMoving) comp.moving = true; else wantStart = true;   // you set off and she has not: a start
+  }
+
+  // Reaction time: a start is decided now and happens a beat later, the way a person answers you
+  // setting off. Only from standing - still carrying intent means she is already underway - and
+  // only in the follow task: the Wander task (roam, wander) has none in the engine either.
+  if (wantStart) {
+    const underway = comp.intent > 0 || strolling;
+    if (!comp.reacting) {
+      comp.reacting = true;
+      const m = P.ReactionTimeMean;
+      comp.reactLeft = (m <= 0 || underway) ? 0 : clamp(randNormal(m, P.ReactionTimeSpread), m * 0.43, m * 2);
+      comp.reactSample = comp.reactLeft;
+    }
+    comp.reactLeft -= dt;
+    if (comp.reactLeft <= 0 || underway) {
+      if (comp.reactSample > 0 && !underway) comp.reactLog.push(comp.reactSample);
+      comp.reacting = false;
+      comp.moving = true;
+      comp.stop = stopBand + Math.random() * jitterBand;
+    }
+  } else {
+    comp.reacting = false;
+  }
 
   /* ------------------------------- intent ---------------------------------- */
   const targetIntent = (comp.moving && (!standStill || tooCloseToRest)) ? 1 : 0;
@@ -1891,6 +2187,22 @@ function stepCompanion(dt) {
     if (comp.mode === "follow" && leaderSpeed > P.KeepWalkingLeaderSpeed
         && goalDist <= P.PaceMatchTolerance) {
       target = clamp(leaderSpeed, P.WalkSpeed * 0.5, P.RunSpeed);
+      // Side by side needs the gap along your heading closed too: matching your pace kept her two
+      // metres behind a slot level with your shoulder for a whole stroll. So, as far as the shape
+      // has turned into walking beside, the pace leans by the along-track error, capped.
+      const span = P.SideBySideAngle - P.FormationAngle;
+      const beside = span > 1e-4 ? clamp((comp.formAngle - P.FormationAngle) / span, 0, 1) : 0;
+      if (beside > 0) {
+        const toGoal = sub(goal, comp.p);
+        const alongErr = toGoal.x * fwd.x + toGoal.y * fwd.y;
+        target = clamp(target + beside * clamp(alongErr, -0.5 * leaderSpeed, 0.6 * leaderSpeed), P.WalkSpeed * 0.5, P.RunSpeed);
+      }
+    }
+    // Someone strolling is not someone to sprint after: catching up is a quickened step, unless
+    // she has genuinely been left behind (StrollCatchUpFactor, StrollCatchUpMaxGap).
+    if (comp.mode === "follow" && P.StrollCatchUpFactor > 0 && leaderSpeed > P.KeepWalkingLeaderSpeed
+        && leaderSpeed < P.SideBySideMaxLeaderSpeed && gap < P.StrollCatchUpMaxGap) {
+      target = Math.min(target, P.WalkSpeed * P.StrollCatchUpFactor);
     }
     // Investigating is a stroll whatever the distance says: she is curious, not late.
     if (comp.mode === "roam") target = P.RoamSpeed;
@@ -1933,7 +2245,8 @@ function stepCompanion(dt) {
     // Follow only, and for the same reason: with her own goal nearby, blending in the leader's
     // heading walks her along with you. While investigating, the steer to her own spot is the
     // whole answer.
-    if (comp.mode === "follow" && !comp.spot && P.HeadingFollowWeight > 0
+    // Nor while stepping aside: your heading points at her then, which is backing away in front of you.
+    if (comp.mode === "follow" && !comp.spot && !steppingAside && P.HeadingFollowWeight > 0
         && leaderSpeed > P.KeepWalkingLeaderSpeed
         && P.PaceMatchTolerance > 0 && goalDist < P.PaceMatchTolerance && len(fwd) > 1e-6) {
       const nearness = 1 - clamp(goalDist / P.PaceMatchTolerance, 0, 1);
@@ -1996,6 +2309,9 @@ function stepCompanion(dt) {
   if (len(comp.v) > 15) {
     comp.yaw = rInterpConst(comp.yaw, yawOf(comp.v), dt, P.RotationRate);
     comp.standFace = null;      // walking: whatever she was looking at is behind her now
+  } else if (comp.mode === "share" && comp.focus.valid) {
+    // Look At with bTurnBody: she turns to what you are looking at.
+    comp.yaw = rInterpConst(comp.yaw, yawOf(sub(comp.focus.p, comp.p)), dt, P.FaceLeaderTurnRate);
   } else if (strolling) {
     // Looking at what she walked over to, or down whichever way the ground kept going.
     if (comp.roamFace !== null) {
@@ -2003,8 +2319,28 @@ function stepCompanion(dt) {
     }
   } else if (comeToRest || !P.bLookAroundWhenStopped) {
     // You are looking at her, so she looks back: that is the whole point of the attention rule.
+    // But not as a stare. The Look At task holds the gaze for a spell drawn from a bell curve,
+    // looks a little away for a moment, and comes back; only while you are actually looking.
+    let off = 0;
+    if (comeToRest && noticed) {
+      const g = comp.gaze;
+      g.left -= dt;
+      if (g.left <= 0) {
+        g.away = !g.away;
+        if (g.away) {
+          g.left = lerp(Math.min(P.MinGlanceAwayTime, P.MaxGlanceAwayTime), Math.max(P.MinGlanceAwayTime, P.MaxGlanceAwayTime), Math.random());
+          g.off = lerp(P.GlanceAwayAngle * 0.4, P.GlanceAwayAngle, Math.random()) * (Math.random() < 0.5 ? -1 : 1);
+          comp.gazeBreaks++;
+        } else {
+          g.left = sampleHoldTime();
+          g.off = 0;
+          comp.gazeHolds.push(g.left);
+        }
+      }
+      off = g.off;
+    }
     if (P.bFaceLeaderWhenStopped && (P.FaceLeaderDistance <= 0 || gap <= P.FaceLeaderDistance)) {
-      comp.yaw = rInterpConst(comp.yaw, yawOf(sub(leader.p, comp.p)), dt, P.FaceLeaderTurnRate);
+      comp.yaw = rInterpConst(comp.yaw, yawOf(sub(leader.p, comp.p)) + off, dt, P.FaceLeaderTurnRate);
     }
   } else {
     // Standing about with nobody watching her. Facing the leader every time she halts reads as a
@@ -2244,6 +2580,22 @@ function drawMap() {
     mctx.stroke(); mctx.globalAlpha = 1;
   }
 
+  // Shared attention: what you are looking at (once it has held a moment), and her look joining it.
+  if (comp.focus.valid && comp.focus.time > 0.3) {
+    const fp = comp.focus.p;
+    mctx.save();
+    mctx.setLineDash([4, 6]); mctx.lineWidth = 1.5;
+    mctx.strokeStyle = C.lead; mctx.globalAlpha = 0.6;
+    mctx.beginPath(); mctx.moveTo(sx(leader.p.x), sy(leader.p.y)); mctx.lineTo(sx(fp.x), sy(fp.y)); mctx.stroke();
+    if (comp.mode === "share") {
+      mctx.strokeStyle = C.comp; mctx.globalAlpha = 0.8;
+      mctx.beginPath(); mctx.moveTo(sx(comp.p.x), sy(comp.p.y)); mctx.lineTo(sx(fp.x), sy(fp.y)); mctx.stroke();
+    }
+    mctx.setLineDash([]);
+    mctx.beginPath(); mctx.arc(sx(fp.x), sy(fp.y), 6, 0, 7); mctx.stroke();
+    mctx.restore();
+  }
+
   // Where she is looking while standing: the point of the rule is that this is not always you.
   if (comp.standFace !== null && len(comp.v) <= 15) {
     const gazeDir = rot(V(1, 0), comp.standFace);
@@ -2252,6 +2604,19 @@ function drawMap() {
     mctx.beginPath();
     mctx.moveTo(sx(comp.p.x), sy(comp.p.y));
     mctx.lineTo(sx(comp.p.x + gazeDir.x * 260), sy(comp.p.y + gazeDir.y * 260));
+    mctx.stroke(); mctx.setLineDash([]); mctx.globalAlpha = 1;
+  }
+
+  // Gaze-leading: the moment she glances from what she found to you. A short dotted line towards
+  // you, because it is a glance and not a summons.
+  if (comp.gazeLead && comp.gazeLead.phase === 2) {
+    const toYou = norm(sub(leader.p, comp.p));
+    const reach = Math.min(220, dist(comp.p, leader.p));
+    mctx.strokeStyle = C.comp; mctx.globalAlpha = 0.85; mctx.lineWidth = 2;
+    mctx.setLineDash([2, 5]);
+    mctx.beginPath();
+    mctx.moveTo(sx(comp.p.x), sy(comp.p.y));
+    mctx.lineTo(sx(comp.p.x + toYou.x * reach), sy(comp.p.y + toYou.y * reach));
     mctx.stroke(); mctx.setLineDash([]); mctx.globalAlpha = 1;
   }
 
@@ -2338,9 +2703,10 @@ function drawMap() {
       approach: "ComeOver — you kept looking: coming over",
       wander: "WanderOff — wandering off on her own for a bit",
       idle: "IdleBreak — stopped, looking about",
+      share: "ShareAttention — looking at what you are looking at",
     }[comp.mode];
     mctx.fillStyle = comp.mode === "follow" ? C.muted
-                   : (comp.mode === "roam" || comp.mode === "wander" || comp.mode === "idle" ? C.comp : C.lead);
+                   : (comp.mode === "roam" || comp.mode === "wander" || comp.mode === "idle" || comp.mode === "share") ? C.comp : C.lead;
     mctx.font = "500 16px " + css("--font-data");
     mctx.fillText(label, 26, 32);
     mctx.fillStyle = C.muted; mctx.font = "500 14px " + css("--font-data");
@@ -2605,6 +2971,7 @@ for (const id of ["d-route", "d-click", "d-mouse", "d-stand"]) {
   });
 }
 document.getElementById("lookat").addEventListener("change", e => { lookAtCompanion = e.target.checked; });
+document.getElementById("lookclue").addEventListener("change", e => { lookAtClue = e.target.checked; });
 document.getElementById("preset").addEventListener("change", e => applyPreset(e.target.value));
 document.getElementById("helptoggle").addEventListener("click", e => {
   rackEl.classList.toggle("showhelp");
