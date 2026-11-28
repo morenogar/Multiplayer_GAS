@@ -134,6 +134,16 @@ struct FViperCompanionEvaluatorInstanceData
 	UPROPERTY(EditAnywhere, Category = "Parameter|Roaming", meta = (ClampMin = "0"))
 	float LeaderSettleRadius = 750.f;
 
+	/**
+	 * Seconds the leader has to keep walking away from the anchor, already outside
+	 * LeaderLoiterRadius, before they count as leaving the area. Without it she kept to her own
+	 * business until they were the whole LeaderSettleRadius away - two seconds or more of walking -
+	 * and only then started her reaction. Short: it only has to tell heading off from a step
+	 * outwards while pacing about. 0 = leave only at LeaderSettleRadius, the old behaviour.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Roaming", meta = (ClampMin = "0"))
+	float LeaveAreaConfirmTime = 0.3f;
+
 	/** How often RandomValue is re-rolled. A value that holds for a while, so states do not flicker. */
 	UPROPERTY(EditAnywhere, Category = Parameter, meta = (ClampMin = "0.1"))
 	float RandomRerollInterval = 2.f;
@@ -275,6 +285,10 @@ struct FViperCompanionEvaluatorInstanceData
 	/** The anchor is only meaningful once the leader has stood still at least one tick. */
 	UPROPERTY()
 	bool bAnchorValid = false;
+
+	/** Seconds the leader has been walking out of the area, for LeaveAreaConfirmTime. */
+	UPROPERTY()
+	float LeavingAreaTime = 0.f;
 
 	UPROPERTY()
 	bool bWroteCsvHeader = false;
@@ -1041,6 +1055,37 @@ struct FViperWanderTaskInstanceData
 	UPROPERTY(EditAnywhere, Category = "Parameter|GazeLead", meta = (EditCondition = "bGazeLeadOnFinds", ClampMin = "0"))
 	float GazeLeadLeaderLookTime = 0.75f;
 
+	/**
+	 * Steps out of the way when the leader walks at her, as the follow task does: the leader may
+	 * pace about the area she is roaming in, and she used to stay planted in their path. Distance
+	 * ahead of them she reacts within (0 = never).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Space", meta = (ClampMin = "0"))
+	float StepAsideDistance = 250.f;
+
+	/** Half-angle of the cone ahead of the leader that counts as their path. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Space", meta = (ClampMin = "0", ClampMax = "90"))
+	float LeaderPathConeAngle = 35.f;
+
+	/** Below this the leader is shuffling, not walking anywhere. Same value as the follow task. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Space", meta = (ClampMin = "0"))
+	float StepAsideMinLeaderSpeed = 20.f;
+
+	/** How far to the side of the leader's line she steps to: past their personal space. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Space", meta = (ClampMin = "0"))
+	float StepAsideClearance = 180.f;
+
+	/** Pace while stepping aside. The stroll pace is far too slow to get out of the way of someone walking at her. */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Space", meta = (ClampMin = "0"))
+	float StepAsideSpeed = 320.f;
+
+	/**
+	 * While the leader is walking, never pick a spot in the cone ahead of them out to this far.
+	 * Walking into someone's path to stand there is the same mistake as not leaving it.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Parameter|Space", meta = (ClampMin = "0"))
+	float AvoidLeaderPathLength = 500.f;
+
 	/*------------------------------ Internal ----------------------------------*/
 
 	UPROPERTY()
@@ -1062,6 +1107,13 @@ struct FViperWanderTaskInstanceData
 
 	UPROPERTY()
 	float ElapsedTime = 0.f;
+
+	/** Above zero while stepping out of the leader's way; held a moment so she does not step straight back. */
+	UPROPERTY()
+	float StepAsideCountdown = 0.f;
+
+	UPROPERTY()
+	FVector StepAsideGoal = FVector::ZeroVector;
 
 	UPROPERTY()
 	FVector Destination = FVector::ZeroVector;

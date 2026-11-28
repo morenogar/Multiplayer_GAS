@@ -636,6 +636,7 @@ namespace ViperCompanionStateTree
 			Data.TimeLeaderStayingPut = 0.f;
 			Data.bAnchorValid = false;
 			Data.bLeaderSettled = false;
+			Data.LeavingAreaTime = 0.f;
 			return;
 		}
 
@@ -843,15 +844,35 @@ namespace ViperCompanionStateTree
 
 			Data.bLeaderSettled = !bLeavingAnchor && Data.TimeLeaderStayingPut >= Data.LeaderSettleTime;
 		}
-		else if (FVector::Dist2D(LeaderLocationNow, Data.LeaderAnchor) > Data.LeaderSettleRadius)
-		{
-			Data.bLeaderSettled = false;
-			Data.LeaderAnchor = LeaderLocationNow;
-			Data.TimeLeaderStayingPut = 0.f;
-		}
 		else
 		{
-			Data.TimeLeaderStayingPut += DeltaTime;
+			// Leaving, as opposed to pacing about: already out of the circle they loitered in and
+			// still walking outwards. Waiting for the edge of the whole area instead left her at her
+			// own business for seven metres of the leader walking off.
+			const FVector FromAnchor = LeaderLocationNow - Data.LeaderAnchor;
+			const FVector LeaderVelocity = LeaderPawn->GetVelocity();
+			const float DistanceFromAnchor = FromAnchor.Size2D();
+			const bool bWalkingOut = Data.bLeaderIsMoving
+				&& DistanceFromAnchor > Data.LeaderLoiterRadius
+				&& (FromAnchor.X * LeaderVelocity.X + FromAnchor.Y * LeaderVelocity.Y) > 0.f;
+			Data.LeavingAreaTime = bWalkingOut ? Data.LeavingAreaTime + DeltaTime : 0.f;
+
+			const bool bLeftArea = DistanceFromAnchor > Data.LeaderSettleRadius
+				|| (Data.LeaveAreaConfirmTime > 0.f && Data.LeavingAreaTime >= Data.LeaveAreaConfirmTime);
+			if (bLeftArea)
+			{
+				UE_CLOG(ViperCompanionStateTree::DebugLevel() > 0, LogViperCompanion, Log,
+					TEXT("facts | LEFT THE AREA %.0f from the anchor (%s)"), DistanceFromAnchor,
+					DistanceFromAnchor > Data.LeaderSettleRadius ? TEXT("past the edge") : TEXT("walking out"));
+				Data.bLeaderSettled = false;
+				Data.LeaderAnchor = LeaderLocationNow;
+				Data.TimeLeaderStayingPut = 0.f;
+				Data.LeavingAreaTime = 0.f;
+			}
+			else
+			{
+				Data.TimeLeaderStayingPut += DeltaTime;
+			}
 		}
 
 		Data.DistanceLeaderFromAnchor = FVector::Dist2D(LeaderLocationNow, Data.LeaderAnchor);
@@ -2046,6 +2067,8 @@ EStateTreeRunStatus FViperWanderTask::EnterState(FStateTreeExecutionContext& Con
 	Data.bAtFind = false;
 	Data.GazeLeadPhase = 0;
 	Data.GazeLeadCountdown = 0.f;
+	Data.StepAsideCountdown = 0.f;
+	Data.StepAsideGoal = FVector::ZeroVector;
 
 	UNavigationSystemV1* NavSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(Pawn->GetWorld());
 	if (!NavSystem)
@@ -2068,6 +2091,16 @@ EStateTreeRunStatus FViperWanderTask::EnterState(FStateTreeExecutionContext& Con
 	const AActor* LeaderActor = Data.Leader;
 	Data.LookTarget = FVector::ZeroVector;
 	bool bFound = false;
+
+	// Where a walking leader is about to be. A spot there is one she would only have to leave again.
+	const FVector LeaderHeading = LeaderActor ? LeaderActor->GetVelocity().GetSafeNormal2D() : FVector::ZeroVector;
+	const bool bAvoidLeaderPath = LeaderActor && Data.AvoidLeaderPathLength > 0.f && !LeaderHeading.IsNearlyZero()
+		&& LeaderActor->GetVelocity().Size2D() > Data.StepAsideMinLeaderSpeed;
+	auto InLeaderPath = [&](const FVector& Point)
+	{
+		return bAvoidLeaderPath && ViperCompanionStateTree::InLeaderPathCone(LeaderActor->GetActorLocation(),
+			LeaderHeading, Point, Data.LeaderPathConeAngle, Data.AvoidLeaderPathLength);
+	};
 
 	// First: something in the world worth examining. This is the whole point of her going off on
 	// her own - a detective walks over to what can be looked at. Bare ground is the fallback.
@@ -2104,6 +2137,11 @@ EStateTreeRunStatus FViperWanderTask::EnterState(FStateTreeExecutionContext& Con
 
 			if (LeaderActor && Data.MinDistanceFromLeader > 0.f
 				&& FVector::Dist2D(LeaderActor->GetActorLocation(), Candidate) < Data.MinDistanceFromLeader)
+			{
+				continue;
+			}
+
+			if (InLeaderPath(Candidate))
 			{
 				continue;
 			}
@@ -2157,6 +2195,11 @@ EStateTreeRunStatus FViperWanderTask::EnterState(FStateTreeExecutionContext& Con
 
 			if (LeaderActor && Data.MinDistanceFromLeader > 0.f
 				&& FVector::Dist(LeaderActor->GetActorLocation(), Candidate.Location) < Data.MinDistanceFromLeader)
+			{
+				continue;
+			}
+
+			if (InLeaderPath(Candidate.Location))
 			{
 				continue;
 			}
@@ -2233,6 +2276,94 @@ EStateTreeRunStatus FViperWanderTask::Tick(FStateTreeExecutionContext& Context, 
 	if (Data.ElapsedTime >= Data.MaxWanderTime)
 	{
 		return EStateTreeRunStatus::Succeeded;
+	}
+
+	// The leader walking at her while she is about her own business: she steps out of their way,
+	// to the side she is already on, and looks at them while she does - the way you yield to
+	// someone. The follow task has the same reflex; this state used to have none, so pacing about
+	// the area walked the leader straight into her. Held a moment after she leaves the cone, or she
+	// would step out, resume, and step straight back in. Walking or dwelling both pause meanwhile.
+	if (Data.StepAsideDistance > 0.f && Data.Leader)
+	{
+		const bool bWasSteppingAside = Data.StepAsideCountdown > 0.f;
+		Data.StepAsideCountdown = FMath::Max(0.f, Data.StepAsideCountdown - DeltaTime);
+
+		const FVector PawnLocation = Pawn->GetActorLocation();
+		const FVector LeaderLocation = Data.Leader->GetActorLocation();
+		const FVector LeaderVelocity = Data.Leader->GetVelocity();
+		const FVector LeaderHeading = LeaderVelocity.GetSafeNormal2D();
+		AViperCompanionCharacter* Companion = ViperCompanionStateTree::GetCompanionCharacter(Controller);
+
+		if (LeaderVelocity.Size2D() > Data.StepAsideMinLeaderSpeed && !LeaderHeading.IsNearlyZero()
+			&& ViperCompanionStateTree::InLeaderPathCone(LeaderLocation, LeaderHeading, PawnLocation,
+				Data.LeaderPathConeAngle, Data.StepAsideDistance))
+		{
+			const FVector ToPawn = FVector(PawnLocation.X - LeaderLocation.X, PawnLocation.Y - LeaderLocation.Y, 0.f);
+			const float Along = FVector::DotProduct(ToPawn, LeaderHeading);
+			FVector Lateral = ToPawn - LeaderHeading * Along;
+			const float LateralNow = Lateral.Size2D();
+			// Dead centre in front of them: either side, rather than freezing.
+			Lateral = LateralNow > 1.f ? Lateral / LateralNow
+				: FVector::CrossProduct(FVector::UpVector, LeaderHeading) * (FMath::RandBool() ? 1.f : -1.f);
+
+			FVector Aside = LeaderLocation + LeaderHeading * Along + Lateral * FMath::Max(LateralNow, Data.StepAsideClearance);
+			FVector Projected;
+			if (ViperCompanionStateTree::ProjectToNavigation(Pawn->GetWorld(), Aside, Projected))
+			{
+				Aside = Projected;
+			}
+
+			if (!bWasSteppingAside || FVector::Dist2D(Aside, Data.StepAsideGoal) > 60.f)
+			{
+				if (!bWasSteppingAside)
+				{
+					if (UCharacterMovementComponent* Movement = ViperCompanionStateTree::GetMovement(Controller))
+					{
+						Movement->MaxWalkSpeed = FMath::Max(Data.WanderSpeed, Data.StepAsideSpeed);
+					}
+					UE_CLOG(ViperCompanionStateTree::DebugLevel() > 0, LogViperCompanion, Log,
+						TEXT("wander | STEP ASIDE %.0f to the %s, you were %.0f off"),
+						FMath::Max(0.f, Data.StepAsideClearance - LateralNow),
+						FVector::DotProduct(Lateral, FVector::CrossProduct(FVector::UpVector, LeaderHeading)) > 0.f ? TEXT("right") : TEXT("left"),
+						Along);
+					if (Companion && Data.bLookAtDestination)
+					{
+						Companion->SetLookAtActor(Data.Leader, 0.9f);
+					}
+				}
+				Controller->MoveToLocation(Aside, 30.f, true, true, false, false);
+			}
+
+			Data.StepAsideGoal = Aside;
+			Data.StepAsideCountdown = 0.8f;
+		}
+
+		if (Data.StepAsideCountdown > 0.f)
+		{
+			return EStateTreeRunStatus::Running;
+		}
+
+		if (bWasSteppingAside)
+		{
+			// Out of the way: back to what she was doing, from where she now stands.
+			if (UCharacterMovementComponent* Movement = ViperCompanionStateTree::GetMovement(Controller))
+			{
+				Movement->MaxWalkSpeed = Data.WanderSpeed;
+			}
+			if (Companion && Data.bLookAtDestination)
+			{
+				Companion->SetLookAtLocation(Data.LookTarget + FVector(0.f, 0.f, Pawn->BaseEyeHeight), 0.9f);
+			}
+			if (Data.bArrived)
+			{
+				Controller->StopMovement();
+			}
+			else
+			{
+				Controller->MoveToLocation(Data.Destination, Data.AcceptanceRadius, true, true, false, false);
+				return EStateTreeRunStatus::Running;
+			}
+		}
 	}
 
 	// Standing at whatever drew it over there. Walking somewhere and turning straight back is an

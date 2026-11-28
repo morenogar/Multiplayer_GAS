@@ -181,6 +181,20 @@ comando nuevo `ViperPilotSpeed <cm/s>` (cambia `WalkSpeed` del pawn del piloto p
 Límite conocido: si vas hacia ella rápido (300 cm/s desde 2,2 m) aún os rozáis: reacción + rampa
 no le dan tiempo.
 
+### RoamArea frente a lo nuevo (28-11, tarde)
+
+RoamArea (deambular por el área donde te paraste) chocaba con tres cosas:
+
+| Problema | Arreglo | Dónde | Medido |
+|---|---|---|---|
+| Al irte, seguía a lo suyo hasta que estabas a 7,5 m del ancla: la reacción de 0,35 s llegaba tarde | Deja el área en cuanto sales del círculo de 4 m (`LeaderLoiterRadius`) caminando hacia fuera durante `LeaveAreaConfirmTime` 0,3 s | evaluador (hecho `bLeaderSettled`) | web: 1,72 s / 489 cm frente a 2,60 s / 752 cm; juego: `LEFT THE AREA 447 from the anchor (walking out)` |
+| Mientras deambula no te dejaba paso | `Wander` se aparta de lado si vas hacia ella (mirándote), a paso `StepAsideSpeed` 320, y luego sigue; no elige sitios en tu camino mientras andas | `Wander`: `StepAsideDistance` 250, `LeaderPathConeAngle` 35, `StepAsideMinLeaderSpeed` 20, `StepAsideClearance` 180, `StepAsideSpeed` 320, `AvoidLeaderPathLength` 500 | web: distancia mínima 194 frente a 90; juego: `wander \| STEP ASIDE 180 to the right` |
+| Si estabas mirando una pista y echabas a andar, entraba y salía de RoamArea cada 0,16 s (salía por *Studying* pero entraba sin mirarlo) | Condición de entrada `!Studying` en RoamArea | `ST_Companion` (copia previa `Backups/ST_Companion_2026-11-28_1245_antes-roam-studying.uasset`) | juego (`run_roamfix2`): ya no entra y sale; al echar a andar desde una pista hace `follow | STEP ASIDE` y luego vuelve a RoamArea |
+
+Escenario `scenario_roam.txt`: recluta, va hacia ella, se aleja (`ViperPilotWander 2000`), y repite.
+`sim-check.js scenario` añade cuatro fases al final (deambular, irte, deambular, ir hacia ella).
+Lo que queda igual: dentro del área no camina a tu lado (es la idea de RoamArea).
+
 **No implementado (necesita assets):** pequeños movimientos (cambiar el peso, cruzar los brazos),
 apoyarse o sentarse (animaciones y puntos en el nivel), comentar según cómo te mueves (voces),
 sincronizar el paso (Animation Blueprint), guiar hacia un sitio (no hay momento en el juego en
@@ -211,7 +225,7 @@ que ella vaya delante).
    toolset). La que no se recluta llena el log de `idlebreak | ENTER` que no son de Marci.
    Copia del asset anterior: `D:/Multiplayer_GAS/Backups/ST_Companion_2026-11-27_2254.uasset`.
 2. ~~Nada está commiteado.~~ Commiteado y mergeado en `main` el 28-11 (PR #1). Lo de después
-   (atención compartida) aún no.
+   (atención compartida y "más humano") en la rama `companion-humano` (f0d4b2a), sin mergear.
 3. La disposición nueva de la web **no se ha visto renderizada** (el panel del navegador pide
    iniciar sesión). Si algo está descolocado, es ahí.
 4. Dos patologías viejas del acompañante, sin diagnosticar: una excursión intermitente de unos

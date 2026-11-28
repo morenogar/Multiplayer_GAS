@@ -133,6 +133,21 @@ function scenario() {
         sim.comp.p = sim.V(820, 1530); sim.comp.v = sim.V(0, 0);
         sim.setMouse(2500, 1500);
       } },
+
+    // RoamArea against the rest: does she drop it as soon as you head off, and does she get out
+    // of your way while she is still at it?
+    { label: "open field, stand till she roams", secs: 14, drive: "stand", look: false,
+      before: () => { sim.applyMap(OPEN_MAP); sim.P.RoamIdleTime = 8; sim.setLeaderSpeed(300); } },
+    { label: "you walk off while she roams", secs: 5, drive: "mouse", look: false,
+      before: () => sim.setMouse(sim.leader.p.x + 1800, sim.leader.p.y) },
+    { label: "stand till she roams again", secs: 14, drive: "stand", look: false },
+    { label: "you walk at her while she roams", secs: 3, drive: "mouse", look: false, walkAt: true,
+      before: () => {
+        // She is put 250 ahead of you, inside the loitering circle, so it is the Wander task
+        // that has to give way rather than the area ending.
+        sim.comp.p = sim.V(sim.leader.p.x + 250, sim.leader.p.y + 20); sim.comp.v = sim.V(0, 0);
+        sim.setMouse(sim.leader.p.x + 1500, sim.leader.p.y);
+      } },
   ];
 
   sim.resetSim(true);
@@ -159,12 +174,18 @@ function scenario() {
     const bearings = [];
     let onProp = 0, onGround = 0, prevTarget = null;
     let prev = { x: sim.comp.p.x, y: sim.comp.p.y };
+    const roamingAtStart = sim.comp.roaming;
+    const startedFrom = { x: sim.leader.p.x, y: sim.leader.p.y };
+    let leftRoam = null;
     for (let i = 0; i < Math.round(phase.secs / DT); i++) {
       if (phase.during) phase.during(i * DT, home);
       sim.stepLeader(DT);
       sim.updateLeaderAttention(DT);
       sim.stepCompanion(DT);
       seen[sim.comp.mode] = (seen[sim.comp.mode] || 0) + DT;
+      if (roamingAtStart && !leftRoam && !sim.comp.roaming) {
+        leftRoam = { t: i * DT, d: sim.dist(sim.leader.p, startedFrom) };
+      }
       moved += Math.hypot(sim.comp.p.x - prev.x, sim.comp.p.y - prev.y);
       prev = { x: sim.comp.p.x, y: sim.comp.p.y };
       if (sim.comp.roamDwell > prevDwell + 1e-9) arrivals++;
@@ -231,6 +252,7 @@ function scenario() {
       extra.push(`beside ${(100 * besideTime / shapeTime).toFixed(0)}% / behind ${(100 * behindTime / shapeTime).toFixed(0)}%` +
                  ` (slot ${sim.comp.formAngle.toFixed(0)}deg at ${sim.comp.formDist.toFixed(0)})`);
     }
+    if (leftRoam) extra.push(`stopped roaming after ${leftRoam.t.toFixed(2)}s, you ${leftRoam.d.toFixed(0)} away`);
     if (phase.walkAt) {
       extra.push(`stepped aside ${sim.comp.stepAsides - base.asides}x` + (walkAtDone
         ? `, by the time you drew level: ${walkAtDone.side.toFixed(0)} sideways, ${walkAtDone.back.toFixed(0)} backwards`

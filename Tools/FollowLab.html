@@ -482,6 +482,14 @@ const GROUPS = [
       h:"Standing dead still was too strict a test: pacing about one room is still staying put. You count as staying put while you are no further than this from where you were when the clock started. Walking somewhere crosses it at once, so a journey never reads as loitering." },
     { k:"RoamIdleTime", t:"Starts investigating after", min:0, max:30, step:0.5, v:8, u:"s",
       h:"How long you have to stay put, by the test above, before she stops waiting on you and starts looking at things. Short values read as twitchy: she is meant to wait on you first and only give up after a while." },
+    { k:"RoamLeaveConfirmTime", t:"Stops investigating once you walk out for", min:0, max:3, step:0.05, v:0.3, u:"s", tree:true,
+      h:"LeaveAreaConfirmTime on the evaluator. Once you are outside the 'staying put' circle and still walking away from where you stopped, this long and she drops what she is doing - rather than waiting for you to cross the whole roaming area. 0 is the old behaviour." },
+    { k:"RoamStepAsideClearance", t:"While investigating, steps this far out of your way", min:0, max:400, step:10, v:180, u:"cm", tree:true,
+      h:"StepAsideClearance on the Wander task. When you walk at her while she is investigating (within 'Steps aside when you walk at her within'), she steps sideways off your line by this much, looking at you, then carries on." },
+    { k:"RoamStepAsideSpeed", t:"...at a pace of", min:60, max:600, step:10, v:320, u:"cm/s", tree:true,
+      h:"StepAsideSpeed on the Wander task. The stroll pace is far too slow to get out of the way of someone walking at you." },
+    { k:"RoamAvoidPathLength", t:"...and never picks a spot this far ahead of you", min:0, max:1200, step:25, v:500, u:"cm", tree:true,
+      h:"AvoidLeaderPathLength on the Wander task. While you are walking, spots in the cone ahead of you are not considered." },
     { k:"RoamStandOff", t:"Stops short of a find by", min:60, max:400, step:10, v:140, u:"cm",
       h:"How far from a thing she stands to look at it. Walking onto it is not looking at it." },
     { k:"RoamSpeed", t:"Investigating pace", min:60, max:400, step:10, v:170, u:"cm/s",
@@ -1170,7 +1178,11 @@ function openestDirection(from, max, preferYaw, bias) {
 // The Wander task, both ways the tree uses it: RoamArea passes the area (anchor, RoamRadius);
 // WanderOff passes her own feet, its own radius and a leash from you - the "drifting" walk.
 function pickRoamPoint(centre = leader.anchor, radius = P.RoamRadius, leash = Infinity) {
-  const inLeash = p => dist(p, leader.p) <= leash;
+  // AvoidLeaderPathLength: while you are walking, not a spot in the cone ahead of you.
+  const heading = norm(leader.v);
+  const avoidPath = P.RoamAvoidPathLength > 0 && len(leader.v) > P.KeepWalkingLeaderSpeed && len(heading) > 1e-6;
+  const inLeash = p => dist(p, leader.p) <= leash
+    && !(avoidPath && inLeaderPathCone(heading, p, P.LeaderPathConeAngle, P.RoamAvoidPathLength));
   if (radius > 0) {
     const finds = PROPS
       .filter(o => dist(o, centre) <= radius && o !== comp.lastProp && inLeash(o))
@@ -1644,6 +1656,7 @@ function resetSim(keepTrace) {
   comp.roamFace = null; comp.lastProp = null; comp.spot = null; comp.standFace = null;
   comp.reacting = false; comp.reactLeft = 0; comp.reactLog = [];
   comp.asideLeft = 0; comp.asideGoal = null; comp.stepAsides = 0;
+  comp.roamAsideLeft = 0; comp.roamAsideGoal = null; comp.leavingTime = 0; comp.leftAreas = 0;
   comp.spotRejects = { cone: 0, narrow: 0 };
   comp.leaderWidth = -1; comp.widthCheck = 0; comp.formAngle = -1; comp.formDist = -1;
   comp.gaze = { away: false, left: 0, off: 0 }; comp.gazeHolds = []; comp.gazeBreaks = 0;
@@ -1871,8 +1884,20 @@ function stepCompanion(dt) {
   const notLeaving = len(leader.v) <= P.KeepWalkingLeaderSpeed || outward <= 0;
   if (!comp.roaming) {
     comp.roaming = notLeaving && leader.loiterTime >= P.RoamIdleTime && leaderInsideRoam;
-  } else if (!leaderInsideRoam) {
-    comp.roaming = false;
+    comp.leavingTime = 0;
+  } else {
+    // Leaving, as opposed to pacing about: out of the circle you loitered in and still walking
+    // outwards (LeaveAreaConfirmTime). Waiting for the edge of the whole area left her at her own
+    // business for seven metres of you walking off.
+    const walkingOut = !notLeaving && dist(leader.p, leader.anchor) > P.RoamLoiterRadius;
+    comp.leavingTime = walkingOut ? (comp.leavingTime || 0) + dt : 0;
+    if (!leaderInsideRoam || (P.RoamLeaveConfirmTime > 0 && comp.leavingTime >= P.RoamLeaveConfirmTime)) {
+      comp.roaming = false;
+      comp.leavingTime = 0;
+      comp.leftAreas = (comp.leftAreas || 0) + 1;
+      leader.anchor = V(leader.p.x, leader.p.y);
+      leader.loiterTime = 0;
+    }
   }
   const settled = comp.roaming;
 
@@ -1893,7 +1918,7 @@ function stepCompanion(dt) {
     // to you. Walking over is ComeOver's job, after a long look - never WalkWithYou's run.
     rest:     () => noticed && !leaderMoving,                                     // EyeContact
     share:    () => studying && !noticed && !leaderMoving,                        // ShareAttention
-    roam:     () => P.RoamRadius > 0 && settled && !noticed,                     // RoamArea
+    roam:     () => P.RoamRadius > 0 && settled && !noticed && !studying,        // RoamArea (Studying is its exit, so also not on entry)
     wander:   () => P.WanderOffAfter > 0 && !leaderMoving && comp.sinceBreak > P.WanderOffAfter
                     && comp.rnd < P.WanderOffChance,                               // WanderOff
     idle:     () => P.IdleBreakAfter > 0 && !leaderMoving && gap < P.IdleBreakMaxDistance
@@ -2021,7 +2046,25 @@ function stepCompanion(dt) {
     // One leg of the Wander task: pick a spot, walk over, stand and look at it, and finish. The
     // tree then re-selects, which is how the next leg comes about (or something else takes over).
     // RoamArea picks inside the area round where you stopped; WanderOff round her own feet.
-    if (comp.roamDwell > 0) {
+    // You walking at her: she steps sideways off your line, looking at you, and carries on after
+    // (walking or dwelling both pause). Held 0.8 s so she does not step straight back in.
+    const wasRoamAside = comp.roamAsideLeft > 0;
+    comp.roamAsideLeft = Math.max(0, (comp.roamAsideLeft || 0) - dt);
+    const heading = norm(leader.v);
+    if (P.StepAsideDistance > 0 && leaderSpeed > P.KeepWalkingLeaderSpeed && len(heading) > 1e-6
+        && inLeaderPathCone(heading, comp.p, P.LeaderPathConeAngle, P.StepAsideDistance)) {
+      const to = sub(comp.p, leader.p);
+      const along = to.x * heading.x + to.y * heading.y;
+      let lat = sub(to, mul(heading, along));
+      const latNow = len(lat);
+      lat = latNow > 1 ? mul(lat, 1 / latNow) : mul(V(-heading.y, heading.x), Math.random() < 0.5 ? 1 : -1);
+      if (!wasRoamAside) comp.stepAsides++;
+      comp.roamAsideGoal = add(add(leader.p, mul(heading, along)), mul(lat, Math.max(latNow, P.RoamStepAsideClearance)));
+      comp.roamAsideLeft = 0.8;
+    }
+    if (comp.roamAsideLeft > 0 && comp.roamAsideGoal) {
+      goal = comp.roamAsideGoal;
+    } else if (comp.roamDwell > 0) {
       comp.roamDwell -= dt;
       if (comp.roamDwell <= 0) comp.stateDone = true;
       goal = V(comp.p.x, comp.p.y);
@@ -2207,6 +2250,8 @@ function stepCompanion(dt) {
     // Investigating is a stroll whatever the distance says: she is curious, not late.
     if (comp.mode === "roam") target = P.RoamSpeed;
     if (comp.mode === "wander") target = P.WanderOffSpeed;
+    // Stepping out of your way is not a stroll: StepAsideSpeed on the Wander task.
+    if ((comp.mode === "roam" || comp.mode === "wander") && comp.roamAsideLeft > 0) target = Math.max(target, P.RoamStepAsideSpeed);
     // Coming over because you looked at her is a brisk walk, not a sprint. Left to the distance
     // rule she crossed eleven metres at full running speed, which reads as being whistled for.
     if (comp.mode === "approach") target = Math.min(target, P.WalkSpeed * 1.5);
